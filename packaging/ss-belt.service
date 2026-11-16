@@ -1,9 +1,7 @@
 [Unit]
 Description=ss-belt capture daemon (hotkeys, tray, socket)
-Documentation=man:ss-belt(1)
 PartOf=graphical-session.target
 After=graphical-session.target
-ConditionEnvironment=WAYLAND_DISPLAY|DISPLAY
 
 [Service]
 Type=simple
