@@ -137,6 +137,11 @@ pub fn run(paths: Paths, mut config: Config) -> Result<()> {
     eprintln!("  hotkeys: {}", hotkey_summary(&config));
     eprintln!("  (Wayland users: see `ss-belt hotkeys --print <desktop>`)");
 
+    // A recording can be started from the CLI or a hotkey while the daemon is
+    // idle, so poll the state file rather than trusting only our own actions.
+    let mut last_recording = crate::adapters::record::is_recording(&paths);
+    let mut last_recording_check = std::time::Instant::now();
+
     while !STOP.load(Ordering::SeqCst) {
         // Socket commands.
         match listener.accept() {
@@ -145,6 +150,17 @@ pub fn run(paths: Paths, mut config: Config) -> Result<()> {
             }
             Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {}
             Err(err) => tracing::warn!("accept failed: {err}"),
+        }
+
+        if last_recording_check.elapsed() >= Duration::from_secs(1) {
+            last_recording_check = std::time::Instant::now();
+            let recording = crate::adapters::record::is_recording(&paths);
+            if recording != last_recording {
+                last_recording = recording;
+                if let Some(tray) = &tray {
+                    let _ = tray.update(|state| state.recording = recording);
+                }
+            }
         }
 
         // Hotkey and tray events.
