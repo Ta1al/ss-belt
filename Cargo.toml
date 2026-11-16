@@ -60,7 +60,9 @@ Optional external tools are probed at run time; `ss-belt doctor` explains what
 is missing and how to install it."""
 section = "graphics"
 priority = "optional"
-depends = "$auto"
+# `$auto` needs dpkg-shlibdeps, which only exists on Debian hosts. Name the
+# runtime libraries explicitly so the package is correct wherever it is built.
+depends = "libc6, libgcc-s1"
 recommends = "grim, slurp, wl-clipboard, satty, ffmpeg, libnotify"
 suggests = "tesseract-ocr, gifski, swappy, wl-screenrec, spectacle, xclip, xdg-utils"
 assets = [
