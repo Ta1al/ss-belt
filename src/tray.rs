@@ -1,18 +1,61 @@
-use ksni::blocking::TrayMethods;
-use ksni::menu::{MenuItem, StandardItem};
-use ksni::{ToolTip, Tray};
+//! StatusNotifierItem (system tray) integration.
+//!
+//! Left click captures a region; middle click re-uploads the last capture;
+//! right click opens the full tool menu. The icon is embedded so it renders even
+//! when the desktop's icon theme has no matching name.
+
 use std::sync::mpsc::Sender;
 
+use ksni::blocking::TrayMethods;
+use ksni::menu::{MenuItem, StandardItem};
+use ksni::{Icon, ToolTip, Tray};
+
 use crate::daemon::Event;
+
+const ICON_32: &[u8] = include_bytes!("../assets/ss-belt-32.png");
+const ICON_64: &[u8] = include_bytes!("../assets/ss-belt-64.png");
 
 pub struct BeltTray {
     pub sender: Sender<Event>,
     pub recording: bool,
 }
 
+/// Short, menu-friendly labels. Every action in `action::ACTIONS` must have one;
+/// a unit test enforces it.
+pub fn label_for(action: &str) -> Option<&'static str> {
+    Some(match action {
+        "region" => "Capture region",
+        "full" => "Capture screen",
+        "window" => "Capture window",
+        "monitor" => "Capture monitor",
+        "annotate" => "Capture and annotate",
+        "clipboard_edit" => "Edit clipboard image",
+        "qr_scan" => "Scan QR code",
+        "qr_make" => "Make QR code",
+        "ocr" => "OCR region",
+        "upload" => "Upload last capture",
+        "annotate_last" => "Annotate last capture",
+        "gif" => "Record GIF",
+        "video" => "Record video",
+        _ => return None,
+    })
+}
+
+/// Groups used by the menu, in display order.
+const GROUPS: &[(&str, &[&str])] = &[
+    ("Capture", &["region", "full", "window", "monitor"]),
+    ("Create", &["annotate", "clipboard_edit", "qr_scan", "qr_make", "ocr"]),
+    ("Record", &["gif", "video"]),
+    ("Share", &["upload", "annotate_last"]),
+];
+
 impl Tray for BeltTray {
     fn id(&self) -> String {
         "ss-belt".to_string()
+    }
+
+    fn category(&self) -> ksni::Category {
+        ksni::Category::ApplicationStatus
     }
 
     fn title(&self) -> String {
@@ -24,53 +67,105 @@ impl Tray for BeltTray {
     }
 
     fn icon_name(&self) -> String {
-        "camera-photo-symbolic".to_string()
+        "ss-belt".to_string()
+    }
+
+    fn icon_pixmap(&self) -> Vec<Icon> {
+        icons()
     }
 
     fn tool_tip(&self) -> ToolTip {
         ToolTip {
             title: self.title(),
-            description: "Capture, annotate, record, OCR, QR and upload".to_string(),
+            description: if self.recording {
+                "Recording — click to capture a region".to_string()
+            } else {
+                "Click: capture region · Right click: tools".to_string()
+            },
             ..Default::default()
         }
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let mut items = Vec::new();
-        for (action, label) in [
-            ("region", "Capture region"),
-            ("full", "Capture screen"),
-            ("annotate", "Capture and annotate"),
-            ("qr_scan", "Scan QR code"),
-            ("ocr", "OCR region"),
-            ("gif", "Record GIF"),
-            ("video", "Record video"),
-            ("upload", "Upload last"),
-        ] {
-            items.push(menu_item(label, Some(action), self.sender.clone()));
+
+        // A disabled status line keeps the state visible without a tooltip.
+        items.push(disabled(if self.recording {
+            "Recording…"
+        } else {
+            "Ready"
+        }));
+        items.push(MenuItem::Separator);
+
+        for (index, (group, actions)) in GROUPS.iter().enumerate() {
+            if index > 0 {
+                items.push(MenuItem::Separator);
+            }
+            items.push(disabled(group));
+            for action_name in *actions {
+                let Some(label) = label_for(action_name) else { continue };
+                // While recording, the record entries become stop entries.
+                let label = if self.recording && matches!(*action_name, "gif" | "video") {
+                    match *action_name {
+                        "gif" => "Stop GIF recording".to_string(),
+                        _ => "Stop video recording".to_string(),
+                    }
+                } else {
+                    label.to_string()
+                };
+                items.push(item(&label, action_name, self.sender.clone()));
+            }
         }
+
         items.push(MenuItem::Separator);
-        items.push(menu_item("Reload config", None, self.sender.clone()));
-        items.push(MenuItem::Separator);
+        items.push(reload_item(self.sender.clone()));
         items.push(quit_item(self.sender.clone()));
         items
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        let _ = self.sender.send(Event::Action("region".into()));
+        let _ = self.sender.send(Event::Action(activate_action().to_string()));
+    }
+
+    fn secondary_activate(&mut self, _x: i32, _y: i32) {
+        let _ = self.sender.send(Event::Action(secondary_action().to_string()));
     }
 }
 
-/// `action == None` means "reload".
-fn menu_item(label: &str, action: Option<&str>, sender: Sender<Event>) -> MenuItem<BeltTray> {
-    let event = match action {
-        Some(name) => Event::Action(name.to_string()),
-        None => Event::Reload,
-    };
+/// Left click on the tray icon.
+pub fn activate_action() -> &'static str {
+    "region"
+}
+
+/// Middle click on the tray icon.
+pub fn secondary_action() -> &'static str {
+    "upload"
+}
+
+fn disabled(label: &str) -> MenuItem<BeltTray> {
+    MenuItem::Standard(StandardItem {
+        label: label.to_string(),
+        enabled: false,
+        ..Default::default()
+    })
+}
+
+fn item(label: &str, action_name: &str, sender: Sender<Event>) -> MenuItem<BeltTray> {
+    let event = Event::Action(action_name.to_string());
     MenuItem::Standard(StandardItem {
         label: label.to_string(),
         activate: Box::new(move |_tray: &mut BeltTray| {
             let _ = sender.send(event.clone());
+        }),
+        ..Default::default()
+    })
+}
+
+fn reload_item(sender: Sender<Event>) -> MenuItem<BeltTray> {
+    MenuItem::Standard(StandardItem {
+        label: "Reload config".to_string(),
+        activate: Box::new(move |_tray: &mut BeltTray| {
+            let _ = sender.send(Event::Reload);
         }),
         ..Default::default()
     })
@@ -86,17 +181,99 @@ fn quit_item(sender: Sender<Event>) -> MenuItem<BeltTray> {
     })
 }
 
-/// Spawn the StatusNotifierItem service.
+/// Decode the embedded PNGs into the ARGB32 network-byte-order form the
+/// StatusNotifierItem spec requires.
+fn icons() -> Vec<Icon> {
+    [ICON_32, ICON_64]
+        .iter()
+        .filter_map(|png| icon_from_png(png).ok())
+        .collect()
+}
+
+fn icon_from_png(png: &[u8]) -> anyhow::Result<Icon> {
+    let image = image::load_from_memory(png)?.to_rgba8();
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height * 4) as usize);
+    for pixel in image.pixels() {
+        let [r, g, b, a] = pixel.0;
+        data.extend_from_slice(&[a, r, g, b]);
+    }
+    Ok(Icon { width: width as i32, height: height as i32, data })
+}
+
+/// Spawn the tray service.
 ///
-/// A missing tray host (niri, stock GNOME without the AppIndicator extension) is
-/// not fatal: there is simply nobody to render the icon, and every action stays
-/// available through hotkeys and the CLI.
+/// Returns `None` when the desktop has no StatusNotifierItem host (niri, or
+/// stock GNOME without the AppIndicator extension): the daemon still runs, but
+/// there is nowhere to draw the icon.
 pub fn spawn(sender: Sender<Event>, recording: bool) -> Option<ksni::blocking::Handle<BeltTray>> {
     match (BeltTray { sender, recording }).spawn() {
         Ok(handle) => Some(handle),
         Err(err) => {
-            tracing::debug!("no StatusNotifierItem host: {err}");
+            tracing::warn!("no StatusNotifierItem host: {err}");
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::action;
+
+    #[test]
+    fn every_action_has_a_short_label() {
+        for (name, _) in action::ACTIONS {
+            assert!(label_for(name).is_some(), "no tray label for `{name}`");
+        }
+    }
+
+    #[test]
+    fn the_menu_covers_every_action() {
+        let listed: Vec<&str> = GROUPS.iter().flat_map(|(_, actions)| actions.iter().copied()).collect();
+        for (name, _) in action::ACTIONS {
+            assert!(listed.contains(name), "`{name}` is missing from the tray menu");
+        }
+        assert_eq!(listed.len(), action::ACTIONS.len());
+    }
+
+    #[test]
+    fn clicks_map_to_region_and_upload() {
+        assert_eq!(activate_action(), "region");
+        assert_eq!(secondary_action(), "upload");
+    }
+
+    #[test]
+    fn the_embedded_icon_is_argb32_network_order() {
+        let icons = icons();
+        assert_eq!(icons.len(), 2);
+        let icon = &icons[1];
+        assert_eq!(icon.width, 64);
+        assert_eq!(icon.height, 64);
+        assert_eq!(icon.data.len(), 64 * 64 * 4);
+        // Corners are transparent (rounded background), the centre is opaque.
+        assert_eq!(icon.data[3], 0, "corner should be transparent");
+        let centre = ((32 * 64) + 32) * 4;
+        assert_eq!(icon.data[centre], 255, "centre should be opaque");
+    }
+
+    #[test]
+    fn the_menu_has_a_status_line_and_quit() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let tray = BeltTray { sender: tx, recording: false };
+        let menu = tray.menu();
+        assert!(format!("{menu:?}").contains("Ready"));
+        assert!(format!("{menu:?}").contains("Quit"));
+        assert!(format!("{menu:?}").contains("Capture region"));
+    }
+
+    #[test]
+    fn recording_switches_the_record_entries_to_stop() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let tray = BeltTray { sender: tx, recording: true };
+        let text = format!("{:?}", tray.menu());
+        assert!(text.contains("Recording…"));
+        assert!(text.contains("Stop GIF recording"));
+        assert!(text.contains("Stop video recording"));
     }
 }

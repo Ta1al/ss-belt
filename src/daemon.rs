@@ -101,16 +101,23 @@ pub fn run(paths: Paths, mut config: Config) -> Result<()> {
     let (event_tx, event_rx) = mpsc::channel::<Event>();
     let (job_tx, job_rx) = mpsc::channel::<Event>();
 
+    // Tray: left click captures a region, right click lists every tool.
+    let tray = crate::tray::spawn(event_tx.clone(), crate::adapters::record::is_recording(&paths));
+    if tray.is_none() {
+        eprintln!(
+            "  tray: no StatusNotifierItem host here — install a tray (waybar, KDE Plasma) \
+             or the GNOME AppIndicator extension to get the icon"
+        );
+    }
+
     // Worker: runs actions sequentially so a long-running annotator never blocks
     // the socket or the hotkey grabber.
     {
         let paths = paths.clone();
         let job_config = config.clone();
-        std::thread::spawn(move || worker(paths, job_config, job_rx));
+        let worker_tray = tray.clone();
+        std::thread::spawn(move || worker(paths, job_config, job_rx, worker_tray));
     }
-
-    // Tray.
-    let _tray = crate::tray::spawn(event_tx.clone(), false);
 
     // X11 hotkeys, when there is an X server to grab them on.
     if std::env::var_os("DISPLAY").is_some() {
@@ -250,15 +257,32 @@ fn acquire_lock(paths: &Paths) -> Result<Lock> {
     Ok(Lock { _file: file, path })
 }
 
-fn worker(paths: Paths, mut config: Config, jobs: Receiver<Event>) {
+fn worker(
+    paths: Paths,
+    mut config: Config,
+    jobs: Receiver<Event>,
+    tray: Option<ksni::blocking::Handle<crate::tray::BeltTray>>,
+) {
     while let Ok(job) = jobs.recv() {
         match job {
-            Event::Action(name) => run_action(&paths, &config, &name),
+            Event::Action(name) => {
+                run_action(&paths, &config, &name);
+                refresh_tray(&tray, &paths);
+            }
             Event::Reload => {
                 config = reload(&paths, &config);
             }
             Event::Quit => break,
         }
+    }
+}
+
+/// Keep the tray title and the record entries in sync with reality: a recording
+/// can also be started or stopped from the CLI while the daemon is idle.
+fn refresh_tray(tray: &Option<ksni::blocking::Handle<crate::tray::BeltTray>>, paths: &Paths) {
+    if let Some(tray) = tray {
+        let recording = crate::adapters::record::is_recording(paths);
+        let _ = tray.update(|state| state.recording = recording);
     }
 }
 
