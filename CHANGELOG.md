@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.1 — 2026-11-16
+
+### Fixed
+
+- **Autostart actually works.** The unit shipped by the source installer landed in
+  `$PREFIX/lib/systemd/user`, which systemd does not read for user units, and it
+  hardcoded `ExecStart=/usr/bin/ss-belt` even for `~/.local` installs. It was also
+  never enabled, so nothing started the daemon at login.
+
+### Added
+
+- `ss-belt autostart --install|--status|--uninstall`: writes the unit to
+  `$XDG_CONFIG_HOME/systemd/user`, points `ExecStart` at the running binary,
+  reloads and enables it, and prints the compositor fallback
+  (`spawn-at-startup` / `exec-once`) when the session does not start
+  `graphical-session.target`.
+
 ## 0.1.0 — 2026-11-16
 
 First working release. Local-only; not published.

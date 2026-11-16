@@ -1,6 +1,6 @@
 [package]
 name = "ss-belt"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.82"
 description = "One toolbelt for Linux capture, annotate, record, OCR, QR and upload"

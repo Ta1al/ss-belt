@@ -140,12 +140,15 @@ The daemon holds the hotkeys, the tray icon (StatusNotifierItem) and a socket
 for other programs:
 
 ```sh
-ss-belt daemon --detach      # start in the background (logs to ~/.local/share/ss-belt/daemon.log)
+ss-belt autostart --install  # start at login (writes ~/.config/systemd/user/ss-belt.service)
+ss-belt daemon --detach      # or start it now, in the background
 ss-belt daemon status
 ss-belt trigger region       # ask the running daemon to run an action
 ss-belt daemon reload        # re-read the config without a restart
 ss-belt daemon stop
-systemctl --user enable --now ss-belt   # if installed as a package
+ss-belt autostart --status    # is it installed, enabled and running?
+ss-belt autostart --install   # systemd user unit pointing at this exact binary
+ss-belt autostart --uninstall
 ```
 
 Actions other programs can trigger: `region`, `full`, `window`, `monitor`,
@@ -275,6 +278,13 @@ ss-belt history --clear
   StatusNotifierItem host is running; install waybar/quickshell, use KDE Plasma,
   or enable the GNOME AppIndicator extension. If the icon resolved before you
   updated ss-belt, restart the bar: hosts cache icon lookups.
+- **It did not start at login** — `ss-belt autostart --status` says whether the
+  unit is installed, enabled and active. `--install` writes
+  `~/.config/systemd/user/ss-belt.service` (systemd ignores units in
+  `~/.local/lib`), points `ExecStart` at the binary you actually run, and enables
+  it. Compositors that never start `graphical-session.target` need
+  `spawn-at-startup "ss-belt" "daemon"` (niri) or `exec-once = ss-belt daemon`
+  (Hyprland); `ss-belt autostart` prints the right line.
 - **Daemon won't start** — another instance owns the socket; `ss-belt daemon
   status`, then `ss-belt daemon stop`. Logs: `~/.local/share/ss-belt/daemon.log`.
 
