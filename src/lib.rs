@@ -15,6 +15,7 @@ pub mod error;
 pub mod exec;
 pub mod history;
 pub mod hotkeys;
+pub mod notify_click;
 pub mod paths;
 pub mod pipeline;
 pub mod steps;

@@ -170,6 +170,13 @@ enum Command {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
+    /// Internal: own a notification and open its target when clicked.
+    #[command(name = "__notify-open", hide = true)]
+    NotifyOpen {
+        target: String,
+        summary: String,
+        body: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -446,6 +453,10 @@ fn run(cli: Cli) -> Result<()> {
             let config = load_config(&cli, &paths)?;
             println!("{}", ss_belt::doctor::summary_line(&paths, &config)?);
             Ok(())
+        }
+
+        Command::NotifyOpen { target, summary, body } => {
+            ss_belt::notify_click::run(target, summary, body)
         }
 
         Command::Completion { shell } => {

@@ -28,13 +28,35 @@ pub fn send(ctx: &Ctx, summary: &str, body: &str) {
         .run();
 }
 
+/// One notification per capture, and clicking it opens the result.
 pub fn notify_run(ctx: &mut Ctx) -> Result<()> {
-    let body = ctx.value.describe();
+    let (summary, body, target) = match &ctx.value {
+        Value::Image(path) | Value::Video(path) => (
+            if matches!(ctx.value, Value::Video(_)) { "Recording saved" } else { "Capture saved" },
+            path.display().to_string(),
+            Some(path.display().to_string()),
+        ),
+        Value::Url(url) => ("Uploaded", url.clone(), Some(url.clone())),
+        Value::Text(text) => (
+            "Copied to clipboard",
+            util::truncate_text(text, 140),
+            None,
+        ),
+        Value::Empty => ("ss-belt", "done".to_string(), None),
+    };
+
     if ctx.dry_run {
-        ctx.note(format!("dry-run: would notify `{body}`"));
+        ctx.note(format!("dry-run: would notify `{summary}: {body}`"));
         return Ok(());
     }
-    ctx.notify("ss-belt", &body);
+    if !ctx.config.general.notify {
+        return Ok(());
+    }
+
+    match target {
+        Some(target) => crate::notify_click::spawn_helper(&target, summary, &body),
+        None => crate::adapters::misc::send(ctx, summary, &body),
+    }
     Ok(())
 }
 
