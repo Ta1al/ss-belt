@@ -241,8 +241,13 @@ message. EXIF and other metadata are stripped from images before upload unless
 
 One notification per action, never two. The bubble carries a `default` action,
 so **clicking it opens the capture** (or the uploaded URL) in your default
-application. The wait happens in a detached helper, so the click still works
-after `ss-belt` itself has exited.
+application.
+
+Failures caused by a missing package are actionable instead of a dead end: the
+bubble says *Missing package* and **clicking it copies the install command** for
+your distribution (`sudo dnf install wl-screenrec wf-recorder`, `sudo apt install …`,
+`sudo pacman -S …`), then replaces itself with a confirmation. The wait happens
+in a detached helper, so the click still works after `ss-belt` itself has exited.
 
 ## History
 
@@ -257,7 +262,8 @@ ss-belt history --clear
 ## Troubleshooting
 
 - **"no capture backend available"** — run `ss-belt doctor`; on Wayland install
-  `grim` and `slurp`, on GNOME `gnome-screenshot`, on KDE `spectacle`.
+  `grim` and `slurp`, on GNOME `gnome-screenshot`, on KDE `spectacle`. Errors
+  print the exact command, and the failure notification copies it for you.
 - **Region capture does nothing** — `slurp` is what draws the selection; check
   `ss-belt steps --available`.
 - **Nothing on the clipboard** — install `wl-clipboard` (Wayland) or `xclip`

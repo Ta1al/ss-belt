@@ -42,6 +42,11 @@ First working release. Local-only; not published.
 - One notification per action (previously a capture produced two).
 - Clicking the notification opens the capture, or the uploaded URL, through a
   detached helper that survives the command that created it.
+- Missing-package failures say *Missing package* and clicking copies the
+  distro-specific install command (`dnf`/`apt`/`pacman`/`zypper`).
+- Error messages name the package and the install command, for example
+  `screen recording on Wayland needs wl-screenrec, wf-recorder` followed by
+  `install with: sudo dnf install wl-screenrec wf-recorder`.
 
 ### Shell and workflow
 
