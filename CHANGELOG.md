@@ -46,8 +46,12 @@ First working release. Local-only; not published.
 - `doctor` with JSON output, `steps --available`, `config --check`.
 - X11 global hotkey grabbing, plus generated snippets for niri, sway, Hyprland,
   GNOME and KDE.
-- Background daemon with a control socket, worker thread, log file and an
-  optional StatusNotifierItem tray.
+- Background daemon with a control socket, worker thread and log file.
+- StatusNotifierItem tray: embedded icon, left click captures a region, middle
+  click uploads the last capture, right click opens every tool grouped by
+  Capture / Create / Record / Share. Title and record entries follow the
+  recording state, including recordings started outside the daemon.
+- `doctor` reports whether a tray host can draw the icon.
 
 ### Packaging
 

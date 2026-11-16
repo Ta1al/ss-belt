@@ -152,6 +152,25 @@ Actions other programs can trigger: `region`, `full`, `window`, `monitor`,
 `annotate`, `clipboard_edit`, `qr_scan`, `qr_make`, `ocr`, `upload`,
 `annotate_last`, `gif`, `video`.
 
+### Tray icon
+
+While the daemon runs it publishes a StatusNotifierItem:
+
+| Click | What happens |
+| --- | --- |
+| **Left** | Capture a region immediately |
+| **Right** | Menu with all thirteen tools, grouped Capture / Create / Record / Share, plus Reload config and Quit |
+| **Middle** | Upload the last capture |
+
+The icon is embedded in the binary (32px + 64px), so it renders even if your
+icon theme has no `ss-belt` entry. While a recording runs the title becomes
+`ss-belt (recording)` and the record entries switch to *Stop …* — including
+recordings started from a hotkey or the CLI.
+
+Some desktops need a host for the icon: KDE Plasma and quickshell/waybar show it
+out of the box, stock GNOME needs the AppIndicator extension. `ss-belt doctor`
+reports `tray available` / `unavailable` so you know which case you are in.
+
 ## Configuration
 
 `~/.config/ss-belt/config.toml`, created with comments on first run. Every key
@@ -237,6 +256,9 @@ ss-belt history --clear
   owner is reported instead of silently dropped.
 - **Hotkeys do nothing under Wayland** — expected: use
   `ss-belt hotkeys --print <desktop>` and let the compositor bind them.
+- **No tray icon** — `ss-belt doctor` reports the tray as unavailable when no
+  StatusNotifierItem host is running; install waybar/quickshell, use KDE Plasma,
+  or enable the GNOME AppIndicator extension.
 - **Daemon won't start** — another instance owns the socket; `ss-belt daemon
   status`, then `ss-belt daemon stop`. Logs: `~/.local/share/ss-belt/daemon.log`.
 
