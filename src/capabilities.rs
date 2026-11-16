@@ -21,7 +21,6 @@ pub enum ToolId {
     Ffmpeg,
     Gifski,
     Tesseract,
-    Magick,
     Exiftool,
     NotifySend,
     XdgOpen,
@@ -30,7 +29,7 @@ pub enum ToolId {
 }
 
 impl ToolId {
-    pub const ALL: [ToolId; 20] = [
+    pub const ALL: [ToolId; 19] = [
         ToolId::Grim,
         ToolId::Slurp,
         ToolId::Spectacle,
@@ -45,7 +44,6 @@ impl ToolId {
         ToolId::Ffmpeg,
         ToolId::Gifski,
         ToolId::Tesseract,
-        ToolId::Magick,
         ToolId::Exiftool,
         ToolId::NotifySend,
         ToolId::XdgOpen,
@@ -69,7 +67,6 @@ impl ToolId {
             ToolId::Ffmpeg => "ffmpeg",
             ToolId::Gifski => "gifski",
             ToolId::Tesseract => "tesseract",
-            ToolId::Magick => "magick",
             ToolId::Exiftool => "exiftool",
             ToolId::NotifySend => "notify-send",
             ToolId::XdgOpen => "xdg-open",
@@ -94,7 +91,6 @@ impl ToolId {
             ToolId::Ffmpeg => "recording fallback and GIF conversion",
             ToolId::Gifski => "higher quality GIF encoding",
             ToolId::Tesseract => "OCR",
-            ToolId::Magick => "image transforms",
             ToolId::Exiftool => "metadata inspection and stripping",
             ToolId::NotifySend => "desktop notifications",
             ToolId::XdgOpen => "opening files and folders",
@@ -119,7 +115,6 @@ impl ToolId {
             ToolId::Ffmpeg => ("ffmpeg", "ffmpeg"),
             ToolId::Gifski => ("gifski", "gifski"),
             ToolId::Tesseract => ("tesseract", "tesseract"),
-            ToolId::Magick => ("ImageMagick", "imagemagick"),
             ToolId::Exiftool => ("perl-Image-ExifTool", "libimage-exiftool-perl"),
             ToolId::NotifySend => ("libnotify", "libnotify-bin"),
             ToolId::XdgOpen => ("xdg-utils", "xdg-utils"),
@@ -139,8 +134,6 @@ impl ToolSet {
         let mut paths = BTreeMap::new();
         for tool in ToolId::ALL {
             let found = which(tool.binary()).or_else(|| match tool {
-                // ImageMagick 7 ships `magick`, 6 ships `convert`.
-                ToolId::Magick => which("convert"),
                 _ => None,
             });
             paths.insert(tool, found);

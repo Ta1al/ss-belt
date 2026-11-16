@@ -1,0 +1,4 @@
+#!/bin/sh
+# fake ffmpeg: only supports the x11grab single-frame form used by capture
+for last do :; done
+cp "$SS_BELT_TEST_PNG" "$last"

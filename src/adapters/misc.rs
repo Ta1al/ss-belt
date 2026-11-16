@@ -24,6 +24,7 @@ pub fn send(ctx: &Ctx, summary: &str, body: &str) {
     let _ = Cmd::new(ctx.tools.program(ToolId::NotifySend))
         .args(["-a", crate::APP_NAME, "-t", "4000", summary, body])
         .timeout(Duration::from_secs(3))
+        .quiet()
         .run();
 }
 
@@ -59,6 +60,7 @@ pub fn open_run(ctx: &mut Ctx) -> Result<()> {
     let _ = Cmd::new(ctx.tools.program(ToolId::XdgOpen))
         .arg(&target)
         .timeout(Duration::from_secs(2))
+        .quiet()
         .run();
     ctx.note(format!("opened {target}"));
     Ok(())

@@ -83,6 +83,16 @@ impl Fixture {
         command
     }
 
+    /// An X11 session: no Wayland socket, a DISPLAY, and the ffmpeg fake.
+    fn x11_command(&self) -> Command {
+        let mut command = self.command();
+        command
+            .env("DISPLAY", ":0")
+            .env("XDG_CURRENT_DESKTOP", "i3")
+            .env_remove("WAYLAND_DISPLAY");
+        command
+    }
+
     fn run(&self, args: &[&str]) -> Output {
         self.command().args(args).output().expect("running ss-belt")
     }
@@ -195,6 +205,22 @@ fn region_capture_saves_copies_and_notifies() {
     let history = fixture.text(&["history", "--limit", "10"]);
     assert!(history.contains("capture.region"), "{history}");
     assert!(history.contains("save"), "{history}");
+}
+
+#[test]
+fn x11_full_capture_goes_through_ffmpeg() {
+    let fixture = Fixture::new();
+    let output = fixture.x11_command().args(["full"]).output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let saved = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    assert!(saved.exists(), "{}", saved.display());
+    let bytes = fs::read(&saved).unwrap();
+    assert_eq!(&bytes[..4], b"\x89PNG");
+    assert!(fixture.text(&["history", "--limit", "5"]).contains("capture.full"));
 }
 
 #[test]

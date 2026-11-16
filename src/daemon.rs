@@ -173,7 +173,7 @@ fn handle_client(
     let command = line.trim();
     let reply = match command {
         "ping" => "pong".to_string(),
-        "status" => crate::doctor::summary_line(paths, config)?,
+        "status" => crate::doctor::summary_line_with(paths, config, true)?,
         "reload" => {
             *config = reload(paths, config);
             let _ = job_tx.send(Event::Reload);
@@ -274,11 +274,12 @@ pub fn ensure_running(paths: &Paths, config: &Config) -> Result<()> {
     let mut command = std::process::Command::new(exe);
     command
         .arg("daemon")
-        .arg("--detach")
-        .env("SS_BELT_HOME", paths.root.clone().unwrap_or_default())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
+    if let Some(root) = &paths.root {
+        command.env("SS_BELT_HOME", root);
+    }
     command.spawn().context("starting the daemon")?;
 
     for _ in 0..50 {

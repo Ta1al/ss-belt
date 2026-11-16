@@ -33,7 +33,7 @@ enum Backend {
     Grim,
     Spectacle,
     Gnome,
-    Import,
+    X11,
 }
 
 impl Backend {
@@ -42,7 +42,7 @@ impl Backend {
             Backend::Grim => "grim",
             Backend::Spectacle => "spectacle",
             Backend::Gnome => "gnome-screenshot",
-            Backend::Import => "imagemagick import",
+            Backend::X11 => "ffmpeg x11grab",
         }
     }
 }
@@ -52,7 +52,7 @@ fn requested_backend(probe: &Probe<'_>) -> Option<Backend> {
         "grim" => Some(Backend::Grim),
         "spectacle" => Some(Backend::Spectacle),
         "gnome" => Some(Backend::Gnome),
-        "x11" | "import" => Some(Backend::Import),
+        "x11" | "import" => Some(Backend::X11),
         _ => None,
     }
 }
@@ -83,15 +83,8 @@ fn select(probe: &Probe<'_>, target: Target) -> Result<Backend> {
     if tools.has(ToolId::GnomeScreenshot) && desktop.is_gnome() {
         return Ok(Backend::Gnome);
     }
-    if tools.has(ToolId::Magick) && (desktop.has_xwayland || desktop.session == SessionType::X11) {
-        if desktop.is_wayland() && target != Target::Full {
-            return Err(user_hint(
-                "no native Wayland capture tool is usable here",
-                "install grim and slurp (wlroots compositors) for native capture; \
-                 ImageMagick can only see XWayland windows",
-            ));
-        }
-        return Ok(Backend::Import);
+    if tools.has(ToolId::Ffmpeg) && (desktop.has_xwayland || desktop.session == SessionType::X11) {
+        return Ok(Backend::X11);
     }
 
     Err(user_hint(
@@ -106,9 +99,9 @@ fn install_hint(desktop: &crate::capabilities::Desktop) -> &'static str {
     } else if desktop.is_gnome() {
         "install gnome-screenshot, or grim + slurp"
     } else if desktop.is_wayland() {
-        "install grim and slurp (Wayland/wlroots), or ImageMagick for X11"
+        "install grim and slurp for native Wayland capture"
     } else {
-        "install ImageMagick (X11) for basic capture"
+        "no display was found; capture needs a graphical session"
     }
 }
 
@@ -118,9 +111,14 @@ fn support_for(probe: &Probe<'_>, target: Target) -> Support {
             (Backend::Grim, Target::Window) => Support::Unavailable(
                 "Wayland has no window enumeration; capture the region instead".into(),
             ),
-            (Backend::Import, Target::Window) => {
-                Support::Unavailable("the X11/ImageMagick backend cannot pick a window".into())
-            }
+            (Backend::X11, Target::Region) => Support::Unavailable(
+                "region capture needs a Wayland selector (grim + slurp) or a full-screen \
+                 capture you crop afterwards"
+                    .into(),
+            ),
+            (Backend::X11, Target::Window) => Support::Unavailable(
+                "the ffmpeg X11 backend cannot pick a window; capture the screen instead".into(),
+            ),
             (Backend::Grim, Target::Region) if !probe.tools.has(ToolId::Slurp) => {
                 Support::Unavailable("region capture with grim needs slurp".into())
             }
@@ -130,9 +128,12 @@ fn support_for(probe: &Probe<'_>, target: Target) -> Support {
             (Backend::Gnome, Target::Monitor) => {
                 Support::Degraded("gnome-screenshot always captures every monitor".into())
             }
-            (Backend::Import, _) if probe.desktop.is_wayland() => Support::Degraded(
+            (Backend::X11, _) if probe.desktop.is_wayland() => Support::Degraded(
                 "XWayland only: native Wayland windows will be missing from the capture".into(),
             ),
+            (Backend::X11, Target::Monitor) => {
+                Support::Degraded("X11 captures the whole screen, not one monitor".into())
+            }
             _ => Support::Ready,
         },
         Err(err) => Support::Unavailable(err.to_string()),
@@ -200,7 +201,7 @@ fn run_target(ctx: &mut Ctx, target: Target) -> Result<()> {
         Backend::Grim => grim(ctx, target, &output)?,
         Backend::Spectacle => spectacle(ctx, target, &output)?,
         Backend::Gnome => gnome(ctx, target, &output)?,
-        Backend::Import => import(ctx, target, &output)?,
+        Backend::X11 => x11(ctx, target, &output)?,
     }
 
     finish(ctx, &output, backend, target)
@@ -328,26 +329,28 @@ fn gnome(ctx: &mut Ctx, target: Target, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn import(ctx: &mut Ctx, target: Target, output: &Path) -> Result<()> {
-    let program = ctx.tools.program(ToolId::Magick);
-    let mut cmd = Cmd::new(&program);
-    if target == Target::Full || target == Target::Monitor {
-        cmd = cmd.args(["-window", "root"]);
+/// X11 capture through ffmpeg's x11grab input.
+///
+/// A native `GetImage` implementation was tried first and rejected: XWayland
+/// (and some X servers) answer `BadMatch` for a root-window grab, while
+/// x11grab works everywhere and is already a supported dependency.
+fn x11(ctx: &mut Ctx, target: Target, output: &Path) -> Result<()> {
+    if target == Target::Window || target == Target::Region {
+        return Err(user(format!("{} is not available on the X11 backend", target.as_str())));
     }
-    let result = cmd.arg_path(output).timeout(Duration::from_secs(120)).run()?;
+    let display = std::env::var("DISPLAY").map_err(|_| {
+        user("X11 capture needs DISPLAY").hint("run ss-belt inside a graphical session")
+    })?;
+
+    let result = Cmd::new(ctx.tools.program(ToolId::Ffmpeg))
+        .args(["-hide_banner", "-loglevel", "error", "-f", "x11grab", "-i", &display])
+        .args(["-frames:v", "1", "-y"])
+        .arg_path(output)
+        .timeout(Duration::from_secs(60))
+        .run()?;
+
     if !result.success() {
-        let message = result.failure();
-        if message.contains("unable to open X server") {
-            return Err(user("cannot talk to the X server")
-                .hint("X11/ImageMagick capture needs a working DISPLAY"));
-        }
-        if message.to_ascii_lowercase().contains("cancel") || message.contains("abort") {
-            return Err(cancelled());
-        }
-        return Err(user(format!("ImageMagick import failed: {message}")));
-    }
-    if !wait_for_file(output, Duration::from_secs(10)) {
-        return Err(cancelled());
+        return Err(user(format!("ffmpeg x11grab failed: {}", result.failure())));
     }
     Ok(())
 }
@@ -389,12 +392,22 @@ mod tests {
     }
 
     #[test]
-    fn wayland_without_native_tools_refuses_xwayland_region() {
-        let tools = testing::tools(&[ToolId::Magick]);
-        let desktop = testing::wayland();
+    fn x11_backend_needs_ffmpeg_and_cannot_select_a_region() {
+        let tools = testing::tools(&[ToolId::Ffmpeg]);
+        let desktop = testing::x11();
         let config = crate::config::Config::default();
         let probe = Probe { tools: &tools, desktop: &desktop, config: &config };
-        let support = region_support(&probe);
-        assert!(!support.ready());
+        assert!(full_support(&probe).ready());
+        assert!(!region_support(&probe).ready());
+        assert!(!window_support(&probe).ready());
+    }
+
+    #[test]
+    fn without_ffmpeg_there_is_no_x11_backend() {
+        let tools = testing::tools(&[]);
+        let desktop = testing::x11();
+        let config = crate::config::Config::default();
+        let probe = Probe { tools: &tools, desktop: &desktop, config: &config };
+        assert!(!full_support(&probe).ready());
     }
 }

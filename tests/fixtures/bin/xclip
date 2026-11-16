@@ -1,0 +1,9 @@
+#!/bin/sh
+out="${SS_BELT_TEST_CLIPBOARD:-/dev/null}"
+for arg do
+  if [ "$arg" = "-o" ]; then
+    [ -s "$out" ] && cat "$out"
+    exit 0
+  fi
+done
+cat > "$out"

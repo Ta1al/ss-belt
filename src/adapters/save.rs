@@ -49,6 +49,7 @@ pub fn run(ctx: &mut Ctx) -> Result<()> {
         let _ = crate::exec::Cmd::new("xdg-open")
             .arg_path(&destination)
             .timeout(std::time::Duration::from_secs(2))
+            .quiet()
             .run();
     }
 

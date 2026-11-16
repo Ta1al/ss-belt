@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use ss_belt::action::{self, Execution};
 use ss_belt::capabilities::{Desktop, ToolSet};
 use ss_belt::config::Config;
-use ss_belt::error::{is_cancelled, is_user_error, user};
+use ss_belt::error::{is_cancelled, is_user_error, user, HintExt};
 use ss_belt::history::History;
 use ss_belt::paths::Paths;
 use ss_belt::steps::{Ctx, Value};
@@ -55,7 +55,11 @@ enum Command {
     ClipboardEdit,
     /// Decode a QR code from a region and copy the result.
     #[command(name = "qr-scan")]
-    QrScan,
+    QrScan {
+        /// Decode this image instead of capturing the screen.
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
     /// Turn text into a QR image.
     #[command(name = "qr-make")]
     QrMake {
@@ -63,7 +67,11 @@ enum Command {
         text: Option<String>,
     },
     /// Extract text from a region with tesseract.
-    Ocr,
+    Ocr {
+        /// Read this image instead of capturing the screen.
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
     /// Upload a file, or the last capture when no file is given.
     Upload {
         file: Option<PathBuf>,
@@ -149,6 +157,11 @@ enum Command {
         detach: bool,
         #[command(subcommand)]
         action: Option<DaemonCommand>,
+    },
+    /// Run an action in the daemon (or in-process when it is not running).
+    Trigger {
+        /// Action name, e.g. region, qr_scan, gif.
+        action: String,
     },
     /// One-line status of the toolchain and daemon.
     Status,
@@ -381,13 +394,21 @@ fn run(cli: Cli) -> Result<()> {
                 let config = load_config(&cli, &paths)?;
                 if *detach {
                     let exe = std::env::current_exe()?;
+                    let log = paths.log_file();
+                    let stderr = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&log)
+                        .map(std::process::Stdio::from)
+                        .unwrap_or_else(|_| std::process::Stdio::null());
                     std::process::Command::new(exe)
                         .arg("daemon")
                         .stdin(std::process::Stdio::null())
                         .stdout(std::process::Stdio::null())
-                        .stderr(std::process::Stdio::null())
+                        .stderr(stderr)
                         .spawn()
                         .context("detaching the daemon")?;
+                    eprintln!("daemon log: {}", log.display());
                     std::thread::sleep(std::time::Duration::from_millis(300));
                     println!("daemon started on {}", paths.socket_file().display());
                     Ok(())
@@ -396,6 +417,23 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         },
+
+        Command::Trigger { action } => {
+            if !ss_belt::action::ACTIONS.iter().any(|(name, _)| name == action) {
+                return Err(user(format!("unknown action `{action}`"))
+                    .hint("run `ss-belt actions` for the list"));
+            }
+            let paths = discover_paths(&cli);
+            if ss_belt::daemon::is_running(&paths) {
+                let reply = ss_belt::daemon::send(&paths, &format!("action {action}"))?;
+                println!("{reply}");
+                return Ok(());
+            }
+            let mut ctx = context(&cli, action)?;
+            run_action(&mut ctx, action, None)?;
+            print_value(&ctx.value);
+            Ok(())
+        }
 
         Command::Status => {
             let paths = discover_paths(&cli);
@@ -444,9 +482,28 @@ fn run(cli: Cli) -> Result<()> {
 
         Command::QrMake { text } => qr_make(&cli, text.clone()),
 
-        Command::QrScan => {
+        Command::QrScan { file } => {
             let mut ctx = context(&cli, "qr_scan")?;
-            run_action(&mut ctx, "qr_scan", None)?;
+            match file {
+                Some(file) => {
+                    ctx.value = Value::Image(file.clone());
+                    run_steps(&mut ctx, &["qr.scan", "clipboard.copy", "notify"])?;
+                }
+                None => run_action(&mut ctx, "qr_scan", None)?,
+            }
+            print_value(&ctx.value);
+            Ok(())
+        }
+
+        Command::Ocr { file } => {
+            let mut ctx = context(&cli, "ocr")?;
+            match file {
+                Some(file) => {
+                    ctx.value = Value::Image(file.clone());
+                    run_steps(&mut ctx, &["ocr", "clipboard.copy", "notify"])?;
+                }
+                None => run_action(&mut ctx, "ocr", None)?,
+            }
             print_value(&ctx.value);
             Ok(())
         }
@@ -528,9 +585,9 @@ fn action_name(command: &Command) -> &'static str {
         Command::Monitor => "monitor",
         Command::Annotate => "annotate",
         Command::ClipboardEdit => "clipboard_edit",
-        Command::QrScan => "qr_scan",
+        Command::QrScan { .. } => "qr_scan",
         Command::QrMake { .. } => "qr_make",
-        Command::Ocr => "ocr",
+        Command::Ocr { .. } => "ocr",
         Command::Upload { .. } => "upload",
         Command::AnnotateLast => "annotate_last",
         Command::Gif { .. } => "gif",

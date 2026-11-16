@@ -70,6 +70,12 @@ fn install_command(package: &str) -> String {
 }
 
 pub fn collect(paths: &Paths, config: &Config) -> Result<Report> {
+    collect_with(paths, config, crate::daemon::is_running(paths))
+}
+
+/// `daemon_running` is passed in explicitly by the daemon itself: probing its own
+/// socket from inside the request handler would deadlock on the accept loop.
+pub fn collect_with(paths: &Paths, config: &Config, daemon_running: bool) -> Result<Report> {
     let tools = ToolSet::detect();
     let desktop = Desktop::detect();
     let probe = Probe { tools: &tools, desktop: &desktop, config };
@@ -98,11 +104,7 @@ pub fn collect(paths: &Paths, config: &Config) -> Result<Report> {
         })
         .collect();
 
-    let daemon = if crate::daemon::is_running(paths) {
-        "running".to_string()
-    } else {
-        "not running".to_string()
-    };
+    let daemon = if daemon_running { "running".to_string() } else { "not running".to_string() };
 
     let (_, pretty) = distro();
 
@@ -151,7 +153,7 @@ pub fn print(paths: &Paths, config: &Config, json: bool) -> Result<()> {
         println!();
         println!("missing tools:");
         for row in missing {
-            println!("  {:<18} {:<38} {}", row.name, row.purpose, row.install);
+            println!("  {:<18} {:<38}  {}", row.name, row.purpose, row.install);
         }
     }
 
@@ -171,7 +173,11 @@ fn writable_marker(path: &Path) -> &'static str {
 
 /// A compact one-line summary used by `ss-belt status`.
 pub fn summary_line(paths: &Paths, config: &Config) -> Result<String> {
-    let report = collect(paths, config)?;
+    summary_line_with(paths, config, crate::daemon::is_running(paths))
+}
+
+pub fn summary_line_with(paths: &Paths, config: &Config, daemon_running: bool) -> Result<String> {
+    let report = collect_with(paths, config, daemon_running)?;
     let ready = report.capabilities.iter().filter(|row| row.status != "unavailable").count();
     Ok(format!(
         "{} · {}/{} capabilities · daemon {} · {}",

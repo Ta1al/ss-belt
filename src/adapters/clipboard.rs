@@ -80,12 +80,14 @@ fn copy_image(ctx: &Ctx, path: &std::path::Path) -> Result<()> {
             .args(["--type", mime])
             .stdin(bytes)
             .timeout(Duration::from_secs(10))
+            .quiet()
             .checked()?;
     } else if ctx.tools.has(ToolId::Xclip) {
         Cmd::new(ctx.tools.program(ToolId::Xclip))
             .args(["-selection", "clipboard", "-t", mime, "-i"])
             .arg_path(path)
             .timeout(Duration::from_secs(10))
+            .quiet()
             .checked()?;
     } else {
         return Err(user("no clipboard tool available").hint("install wl-clipboard or xclip"));
@@ -98,12 +100,14 @@ fn copy_text(ctx: &Ctx, text: &str) -> Result<()> {
         Cmd::new(ctx.tools.program(ToolId::WlCopy))
             .stdin(text.as_bytes().to_vec())
             .timeout(Duration::from_secs(10))
+            .quiet()
             .checked()?;
     } else if ctx.tools.has(ToolId::Xclip) {
         Cmd::new(ctx.tools.program(ToolId::Xclip))
             .args(["-selection", "clipboard", "-i"])
             .stdin(text.as_bytes().to_vec())
             .timeout(Duration::from_secs(10))
+            .quiet()
             .checked()?;
     } else {
         return Err(user("no clipboard tool available").hint("install wl-clipboard or xclip"));

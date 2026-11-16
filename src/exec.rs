@@ -18,6 +18,7 @@ pub struct Cmd {
     envs: Vec<(String, String)>,
     cwd: Option<PathBuf>,
     timeout: Duration,
+    capture_output: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +65,7 @@ impl Cmd {
             envs: Vec::new(),
             cwd: None,
             timeout: Duration::from_secs(60),
+            capture_output: true,
         }
     }
 
@@ -105,6 +107,14 @@ impl Cmd {
         self
     }
 
+    /// Do not capture output. Required for programs that fork a long-lived child
+    /// (wl-copy, xclip, notify-send): an inherited pipe would keep the reader
+    /// alive long after the command itself exits.
+    pub fn quiet(mut self) -> Self {
+        self.capture_output = false;
+        self
+    }
+
     pub fn display(&self) -> String {
         let mut out = self.program.clone();
         for arg in &self.args {
@@ -123,8 +133,8 @@ impl Cmd {
         command
             .args(&self.args)
             .stdin(if self.stdin.is_some() { Stdio::piped() } else { Stdio::null() })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .stdout(if self.capture_output { Stdio::piped() } else { Stdio::null() })
+            .stderr(if self.capture_output { Stdio::piped() } else { Stdio::null() });
         for (key, value) in &self.envs {
             command.env(key, value);
         }
@@ -150,17 +160,19 @@ impl Cmd {
             })
         });
 
-        let mut stdout_pipe = child.stdout.take().expect("stdout piped");
-        let mut stderr_pipe = child.stderr.take().expect("stderr piped");
-        let stdout_handle = std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            let _ = stdout_pipe.read_to_end(&mut buf);
-            buf
+        let stdout_handle = child.stdout.take().map(|mut pipe| {
+            std::thread::spawn(move || {
+                let mut buf = Vec::new();
+                let _ = pipe.read_to_end(&mut buf);
+                buf
+            })
         });
-        let stderr_handle = std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            let _ = stderr_pipe.read_to_end(&mut buf);
-            buf
+        let stderr_handle = child.stderr.take().map(|mut pipe| {
+            std::thread::spawn(move || {
+                let mut buf = Vec::new();
+                let _ = pipe.read_to_end(&mut buf);
+                buf
+            })
         });
 
         let deadline = Instant::now() + self.timeout;
@@ -184,8 +196,8 @@ impl Cmd {
         if let Some(handle) = stdin_handle {
             let _ = handle.join();
         }
-        let stdout = stdout_handle.join().unwrap_or_default();
-        let stderr = stderr_handle.join().unwrap_or_default();
+        let stdout = stdout_handle.and_then(|handle| handle.join().ok()).unwrap_or_default();
+        let stderr = stderr_handle.and_then(|handle| handle.join().ok()).unwrap_or_default();
 
         Ok(Output {
             code: status.and_then(|s| s.code()),
