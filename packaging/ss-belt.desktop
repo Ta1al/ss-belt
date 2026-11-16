@@ -1,0 +1,37 @@
+[Desktop Entry]
+Type=Application
+Name=ss-belt
+GenericName=Screen capture toolbelt
+Comment=Capture, annotate, record, OCR, scan QR codes and upload
+Exec=ss-belt region
+TryExec=ss-belt
+Icon=ss-belt
+Terminal=false
+Categories=Graphics;Photography;
+Keywords=screenshot;capture;record;gif;ocr;qr;upload;
+StartupNotify=false
+Actions=Region;Full;Annotate;QrScan;Ocr;Gif;
+
+[Desktop Action Region]
+Name=Capture region
+Exec=ss-belt region
+
+[Desktop Action Full]
+Name=Capture screen
+Exec=ss-belt full
+
+[Desktop Action Annotate]
+Name=Capture and annotate
+Exec=ss-belt annotate
+
+[Desktop Action QrScan]
+Name=Scan QR code
+Exec=ss-belt qr-scan
+
+[Desktop Action Ocr]
+Name=OCR region
+Exec=ss-belt ocr
+
+[Desktop Action Gif]
+Name=Record GIF
+Exec=ss-belt gif

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --locked --all-targets
+      - name: Test
+        run: cargo test --locked
+      - name: Doctor runs on a bare system
+        run: ./target/debug/ss-belt doctor --json
+      - name: Config defaults validate
+        run: ./target/debug/ss-belt config --check
+      - name: Desktop entry validates
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq desktop-file-utils
+          desktop-file-validate packaging/ss-belt.desktop
+
+  fedora:
+    name: build (fedora)
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install toolchain
+        run: dnf install -y cargo rust gcc pkgconf-pkg-config
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --locked --release
+      - name: Smoke test
+        run: |
+          ./target/release/ss-belt --version
+          ./target/release/ss-belt doctor

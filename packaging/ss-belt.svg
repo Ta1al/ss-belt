@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b2f3a"/>
+      <stop offset="1" stop-color="#14161c"/>
+    </linearGradient>
+    <linearGradient id="belt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e8a33d"/>
+      <stop offset="1" stop-color="#c9762a"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
+  <!-- camera body -->
+  <rect x="52" y="86" width="152" height="96" rx="16" fill="#f4f1ea"/>
+  <rect x="96" y="68" width="60" height="22" rx="8" fill="#f4f1ea"/>
+  <!-- lens -->
+  <circle cx="128" cy="134" r="34" fill="#2b2f3a"/>
+  <circle cx="128" cy="134" r="22" fill="#7fd1c8"/>
+  <circle cx="120" cy="126" r="8" fill="#ffffff" opacity="0.75"/>
+  <!-- belt with buckle -->
+  <rect x="34" y="188" width="188" height="20" rx="6" fill="url(#belt)"/>
+  <rect x="108" y="180" width="40" height="36" rx="6" fill="none" stroke="#f4f1ea" stroke-width="7"/>
+  <line x1="128" y1="186" x2="128" y2="210" stroke="#f4f1ea" stroke-width="6"/>
+</svg>

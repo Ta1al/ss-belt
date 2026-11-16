@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.82"
 description = "One toolbelt for Linux capture, annotate, record, OCR, QR and upload"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 readme = "README.md"
 categories = ["command-line-utilities", "multimedia::video", "multimedia::images"]
 keywords = ["screenshot", "wayland", "capture", "ocr", "qr"]
@@ -48,3 +48,51 @@ predicates = "3"
 [profile.release]
 lto = "thin"
 strip = true
+
+[package.metadata.deb]
+maintainer = "ss-belt contributors"
+copyright = "2026, ss-belt contributors"
+license-file = ["LICENSE", "0"]
+extended-description = """One toolbelt for Linux screen capture: region and full-screen capture,
+post-capture annotation, GIF and video recording, OCR, built-in QR encode and
+decode, and uploads through ShareX .sxcu files or presigned URLs.
+Optional external tools are probed at run time; `ss-belt doctor` explains what
+is missing and how to install it."""
+section = "graphics"
+priority = "optional"
+depends = "$auto"
+recommends = "grim, slurp, wl-clipboard, satty, ffmpeg, libnotify"
+suggests = "tesseract-ocr, gifski, swappy, wl-screenrec, spectacle, xclip, xdg-utils"
+assets = [
+    ["target/release/ss-belt", "usr/bin/", "755"],
+    ["packaging/ss-belt.desktop", "usr/share/applications/", "644"],
+    ["packaging/ss-belt.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["packaging/ss-belt.service", "usr/lib/systemd/user/", "644"],
+    ["packaging/completions/ss-belt.bash", "usr/share/bash-completion/completions/ss-belt", "644"],
+    ["packaging/completions/ss-belt.zsh", "usr/share/zsh/site-functions/_ss-belt", "644"],
+    ["packaging/completions/ss-belt.fish", "usr/share/fish/vendor_completions.d/ss-belt.fish", "644"],
+    ["README.md", "usr/share/doc/ss-belt/README.md", "644"],
+    ["LICENSE", "usr/share/doc/ss-belt/copyright", "644"],
+]
+
+[package.metadata.generate-rpm]
+summary = "One toolbelt for capture, annotate, record, OCR, QR and upload"
+license = "MIT"
+assets = [
+    { source = "target/release/ss-belt", dest = "/usr/bin/ss-belt", mode = "755" },
+    { source = "packaging/ss-belt.desktop", dest = "/usr/share/applications/ss-belt.desktop", mode = "644" },
+    { source = "packaging/ss-belt.svg", dest = "/usr/share/icons/hicolor/scalable/apps/ss-belt.svg", mode = "644" },
+    { source = "packaging/ss-belt.service", dest = "/usr/lib/systemd/user/ss-belt.service", mode = "644" },
+    { source = "packaging/completions/ss-belt.bash", dest = "/usr/share/bash-completion/completions/ss-belt", mode = "644" },
+    { source = "packaging/completions/ss-belt.zsh", dest = "/usr/share/zsh/site-functions/_ss-belt", mode = "644" },
+    { source = "packaging/completions/ss-belt.fish", dest = "/usr/share/fish/vendor_completions.d/ss-belt.fish", mode = "644" },
+    { source = "README.md", dest = "/usr/share/doc/ss-belt/README.md", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/doc/ss-belt/LICENSE", mode = "644" },
+]
+[package.metadata.generate-rpm.recommends]
+grim = "*"
+slurp = "*"
+wl-clipboard = "*"
+satty = "*"
+ffmpeg = "*"
+libnotify = "*"

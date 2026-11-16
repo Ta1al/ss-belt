@@ -222,7 +222,7 @@ fn finish(ctx: &mut Ctx, output: &Path, backend: Backend, target: Target) -> Res
         return Err(user(format!("{} produced an unreadable image", backend.label())));
     }
 
-    ctx.note(format!("captured {target:?} {width}x{height} with {backend:?}"));
+    ctx.note(format!("captured {} {width}x{height} with {}", target.as_str(), backend.label()));
     ctx.value = Value::Image(output.to_path_buf());
     Ok(())
 }

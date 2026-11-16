@@ -131,7 +131,13 @@ impl Ctx {
 
     pub fn note(&mut self, message: impl Into<String>) {
         let message = message.into();
-        tracing::debug!("{}", message);
+        // In a dry run the notes are the product: print them. Otherwise they are
+        // diagnostics, available with `-v`.
+        if self.dry_run {
+            eprintln!("{message}");
+        } else {
+            tracing::debug!("{}", message);
+        }
         self.log.push(message);
     }
 

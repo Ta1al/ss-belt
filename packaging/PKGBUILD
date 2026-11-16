@@ -1,0 +1,52 @@
+# Maintainer: ss-belt contributors
+pkgname=ss-belt
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="One toolbelt for capture, annotate, record, OCR, QR and upload"
+arch=('x86_64' 'aarch64')
+# Update this once the project has a public home; the tree is intentionally
+# self-contained so the package builds from a local checkout.
+url="https://example.invalid/ss-belt"
+license=('MIT')
+depends=('glibc' 'gcc-libs')
+makedepends=('cargo' 'rust')
+optdepends=(
+  'grim: native Wayland capture on wlroots compositors'
+  'slurp: region selection on wlroots compositors'
+  'spectacle: capture on KDE Plasma'
+  'gnome-screenshot: capture on GNOME'
+  'wl-clipboard: clipboard support on Wayland'
+  'xclip: clipboard support on X11'
+  'satty: annotation window (recommended)'
+  'swappy: annotation window (alternative)'
+  'wl-screenrec: screen recording on wlroots'
+  'wf-recorder: screen recording (alternative)'
+  'ffmpeg: X11 capture, recording fallback, GIF conversion'
+  'gifski: higher quality GIF encoding'
+  'tesseract: OCR'
+  'libnotify: desktop notifications'
+  'xdg-utils: opening files and folders'
+)
+options=('!lto')
+source=()
+sha256sums=()
+
+build() {
+  cargo build --release --locked --manifest-path "$startdir/../Cargo.toml"
+}
+
+package() {
+  local root="$startdir/.."
+  install -Dm755 "$root/target/release/ss-belt" "$pkgdir/usr/bin/ss-belt"
+  install -Dm644 "$root/packaging/ss-belt.desktop" "$pkgdir/usr/share/applications/ss-belt.desktop"
+  install -Dm644 "$root/packaging/ss-belt.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/ss-belt.svg"
+  install -Dm644 "$root/packaging/ss-belt.service" "$pkgdir/usr/lib/systemd/user/ss-belt.service"
+  install -Dm644 "$root/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$root/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 "$root/packaging/completions/ss-belt.bash" \
+    "$pkgdir/usr/share/bash-completion/completions/ss-belt"
+  install -Dm644 "$root/packaging/completions/ss-belt.zsh" \
+    "$pkgdir/usr/share/zsh/site-functions/_ss-belt"
+  install -Dm644 "$root/packaging/completions/ss-belt.fish" \
+    "$pkgdir/usr/share/fish/vendor_completions.d/ss-belt.fish"
+}
