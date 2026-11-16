@@ -2,7 +2,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::capabilities::{SessionType, ToolId};
@@ -97,8 +98,54 @@ pub fn is_recording(paths: &Paths) -> bool {
     read_state(paths).map(|state| process_alive(state.pid)).unwrap_or(false)
 }
 
+/// Children this process spawned, so they can be reaped instead of becoming
+/// zombies that keep looking "alive" to `kill(pid, 0)`.
+fn children() -> &'static Mutex<Vec<(i32, Child)>> {
+    static CHILDREN: OnceLock<Mutex<Vec<(i32, Child)>>> = OnceLock::new();
+    CHILDREN.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn register(child: Child) -> i32 {
+    let pid = child.id() as i32;
+    children().lock().expect("recorder registry").push((pid, child));
+    pid
+}
+
+/// Wait for a child we own. Returns false when the pid belongs to another
+/// process (the daemon started it, for example).
+fn reap(pid: i32, timeout: Duration) -> bool {
+    let mut registry = children().lock().expect("recorder registry");
+    let Some(index) = registry.iter().position(|(candidate, _)| *candidate == pid) else {
+        return false;
+    };
+    let (_, mut child) = registry.remove(index);
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return true;
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(20)),
+            Err(_) => return true,
+        }
+    }
+}
+
 fn process_alive(pid: i32) -> bool {
-    unsafe { libc::kill(pid, 0) == 0 }
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        return false;
+    }
+    // A zombie answers kill(0) but is not recording anything.
+    match fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(stat) => !stat
+            .rsplit_once(')')
+            .map(|(_, rest)| rest.trim_start().starts_with('Z'))
+            .unwrap_or(false),
+        Err(_) => true,
+    }
 }
 
 fn signal(pid: i32, signal: i32) {
@@ -141,11 +188,10 @@ pub fn start_run(ctx: &mut Ctx) -> Result<()> {
     let child = command
         .spawn()
         .with_context(|| format!("starting {}", backend.label()))?;
-    let pid = child.id() as i32;
-
-    // The child must outlive this process: the daemon (or the next CLI call)
-    // stops it through the recorded pid.
-    std::mem::forget(child);
+    // The pid is recorded so the daemon (or the next CLI call) can stop it even
+    // from another process. Within this process the handle is kept so the child
+    // is reaped rather than left as a zombie.
+    let pid = register(child);
 
     let state = Recording {
         pid,
@@ -224,16 +270,18 @@ pub fn stop_run(ctx: &mut Ctx) -> Result<()> {
 
     signal(state.pid, libc::SIGINT);
 
-    let deadline = Instant::now() + Duration::from_secs(15);
-    while Instant::now() < deadline {
-        if !process_alive(state.pid) {
-            break;
+    if !reap(state.pid, Duration::from_secs(15)) {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        while Instant::now() < deadline {
+            if !process_alive(state.pid) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
         }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    if process_alive(state.pid) {
-        signal(state.pid, libc::SIGKILL);
-        std::thread::sleep(Duration::from_millis(300));
+        if process_alive(state.pid) {
+            signal(state.pid, libc::SIGKILL);
+            std::thread::sleep(Duration::from_millis(300));
+        }
     }
     let _ = fs::remove_file(ctx.paths.state_file());
 
