@@ -85,6 +85,31 @@ impl Value {
     }
 }
 
+pub struct FailureNotice {
+    pub summary: String,
+    pub body: String,
+    pub action: Option<crate::notify_click::Action>,
+}
+
+/// Decide what a failure should look like to the user.
+pub fn failure_notice(err: &anyhow::Error) -> FailureNotice {
+    if let Some(missing) = crate::error::missing_tools_in(err) {
+        let command = missing.install_command();
+        return FailureNotice {
+            summary: "Missing package".to_string(),
+            body: format!("Click to copy: {command}"),
+            action: Some(crate::notify_click::Action::Copy(command)),
+        };
+    }
+    let text = format!("{err:#}");
+    let first_line = text.lines().next().unwrap_or("unknown error").to_string();
+    FailureNotice {
+        summary: "ss-belt failed".to_string(),
+        body: crate::util::truncate_text(&first_line, 180),
+        action: None,
+    }
+}
+
 pub struct Ctx {
     pub paths: Paths,
     pub config: Config,
@@ -202,6 +227,21 @@ impl Ctx {
         util::unique_path(&self.config.save_dir().join(format!("{name}.{ext}")))
     }
 
+    /// A failure notification. Missing-package failures become click-to-copy
+    /// install commands instead of a dead end.
+    pub fn notify_error(&self, err: &anyhow::Error) {
+        if !self.config.general.notify {
+            return;
+        }
+        let notice = failure_notice(err);
+        match notice.action {
+            Some(action) => {
+                crate::notify_click::spawn_helper(action, &notice.summary, &notice.body)
+            }
+            None => crate::adapters::misc::send(self, &notice.summary, &notice.body),
+        }
+    }
+
     pub fn notify(&self, summary: &str, body: &str) {
         if !self.config.general.notify {
             return;
@@ -310,3 +350,40 @@ pub fn validate_chain_from(steps: &[String], start: Kind) -> Result<Vec<&'static
     Ok(specs)
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::capabilities::ToolId;
+
+    #[test]
+    fn a_missing_package_becomes_a_copy_install_command() {
+        let err = crate::error::missing_tools("OCR", &[ToolId::Tesseract]);
+        let notice = failure_notice(&err);
+        assert_eq!(notice.summary, "Missing package");
+        match notice.action {
+            Some(crate::notify_click::Action::Copy(command)) => {
+                assert!(command.contains("tesseract"), "{command}");
+                assert!(
+                    command.contains("dnf")
+                        || command.contains("apt")
+                        || command.contains("pacman")
+                        || command.contains("zypper")
+                        || command.contains("package manager"),
+                    "{command}"
+                );
+                assert_eq!(notice.body, format!("Click to copy: {command}"));
+            }
+            other => panic!("expected a copy action, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn other_failures_are_plain_notifications() {
+        let err = crate::error::user("the clipboard is empty");
+        let notice = failure_notice(&err);
+        assert_eq!(notice.summary, "ss-belt failed");
+        assert!(notice.action.is_none());
+        assert!(notice.body.contains("clipboard is empty"));
+    }
+}

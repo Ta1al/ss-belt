@@ -54,7 +54,11 @@ pub fn notify_run(ctx: &mut Ctx) -> Result<()> {
     }
 
     match target {
-        Some(target) => crate::notify_click::spawn_helper(&target, summary, &body),
+        Some(target) => crate::notify_click::spawn_helper(
+            crate::notify_click::Action::Open(target),
+            summary,
+            &body,
+        ),
         None => crate::adapters::misc::send(ctx, summary, &body),
     }
     Ok(())
@@ -64,7 +68,7 @@ pub fn open_support(probe: &Probe<'_>) -> Support {
     if probe.tools.has(ToolId::XdgOpen) {
         Support::Ready
     } else {
-        Support::Unavailable("xdg-open is missing (install xdg-utils)".into())
+        Support::Unavailable("xdg-open is missing".into())
     }
 }
 

@@ -71,11 +71,11 @@ fn run_action(paths: &Paths, config: &Config, action_name: &str) {
             }
             Err(err) if is_user_error(&err) => {
                 tracing::warn!("{action_name}: {err:#}");
-                ctx.notify("ss-belt failed", &format!("{err:#}"));
+                ctx.notify_error(&err);
             }
             Err(err) => {
                 tracing::error!("{action_name}: {err:#}");
-                ctx.notify("ss-belt failed", &format!("{err:#}"));
+                ctx.notify_error(&err);
             }
         },
         Err(err) => tracing::error!("could not start {action_name}: {err:#}"),

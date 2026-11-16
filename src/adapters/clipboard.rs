@@ -3,7 +3,7 @@ use std::fs;
 use std::time::Duration;
 
 use crate::capabilities::{SessionType, ToolId};
-use crate::error::user;
+use crate::error::{missing_tools, user};
 use crate::exec::Cmd;
 use crate::steps::{Ctx, Probe, Support, Value};
 use crate::util;
@@ -89,7 +89,7 @@ fn copy_image(ctx: &Ctx, path: &std::path::Path) -> Result<()> {
             .quiet()
             .checked()?;
     } else {
-        return Err(user("no clipboard tool available").hint("install wl-clipboard or xclip"));
+        return Err(missing_tools("the clipboard", &[ToolId::WlCopy, ToolId::Xclip]));
     }
     Ok(())
 }
@@ -109,7 +109,7 @@ fn copy_text(ctx: &Ctx, text: &str) -> Result<()> {
             .quiet()
             .checked()?;
     } else {
-        return Err(user("no clipboard tool available").hint("install wl-clipboard or xclip"));
+        return Err(missing_tools("the clipboard", &[ToolId::WlCopy, ToolId::Xclip]));
     }
     Ok(())
 }
@@ -247,4 +247,40 @@ mod tests {
         ctx.value = Value::Text("hello".into());
         copy_run(&mut ctx).unwrap();
     }
+}
+
+/// A clipboard program, resolved without a [`Ctx`], for the notification helper.
+#[derive(Debug, Clone)]
+pub struct Writer {
+    pub program: std::path::PathBuf,
+    pub wayland: bool,
+}
+
+/// Pick the clipboard program that fits this session.
+pub fn which_writer() -> Option<Writer> {
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some_and(|value| !value.is_empty());
+    if wayland {
+        if let Some(program) = crate::exec::which("wl-copy") {
+            return Some(Writer { program, wayland: true });
+        }
+    }
+    crate::exec::which("xclip").map(|program| Writer { program, wayland: false })
+}
+
+pub fn write_text_with(writer: &Writer, text: &str) -> anyhow::Result<()> {
+    if writer.wayland {
+        Cmd::new(writer.program.display().to_string())
+            .stdin(text.as_bytes().to_vec())
+            .timeout(Duration::from_secs(10))
+            .quiet()
+            .checked()?;
+    } else {
+        Cmd::new(writer.program.display().to_string())
+            .args(["-selection", "clipboard", "-i"])
+            .stdin(text.as_bytes().to_vec())
+            .timeout(Duration::from_secs(10))
+            .quiet()
+            .checked()?;
+    }
+    Ok(())
 }
