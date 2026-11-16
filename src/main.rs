@@ -163,6 +163,15 @@ enum Command {
         /// Action name, e.g. region, qr_scan, gif.
         action: String,
     },
+    /// Start the daemon at login (systemd user unit), or show how.
+    Autostart {
+        #[arg(long)]
+        install: bool,
+        #[arg(long)]
+        uninstall: bool,
+        #[arg(long)]
+        status: bool,
+    },
     /// One-line status of the toolchain and daemon.
     Status,
     /// Generate shell completions.
@@ -446,6 +455,41 @@ fn run(cli: Cli) -> Result<()> {
             let mut ctx = context(&cli, action)?;
             run_action(&mut ctx, action, None)?;
             print_value(&ctx.value);
+            Ok(())
+        }
+
+        Command::Autostart { install, uninstall, status } => {
+            if *uninstall {
+                ss_belt::autostart::uninstall()?;
+                println!("autostart removed");
+                return Ok(());
+            }
+            if *install {
+                let path = ss_belt::autostart::install()?;
+                let state = ss_belt::autostart::status();
+                println!("installed {}", path.display());
+                println!("{}", state.line());
+                if state.active != "active" {
+                    let desktop = Desktop::detect();
+                    println!();
+                    println!("systemd did not start it. This session may not use graphical-session.target;");
+                    println!("add this to your compositor config instead:");
+                    println!("  {}", ss_belt::autostart::compositor_snippet(&desktop));
+                }
+                return Ok(());
+            }
+            let state = ss_belt::autostart::status();
+            println!("{}", state.line());
+            if *status || !state.installed {
+                let desktop = Desktop::detect();
+                if state.installed && state.enabled == "enabled" {
+                    println!("autostart is set up; `ss-belt autostart --uninstall` removes it");
+                } else {
+                    println!("run `ss-belt autostart --install` to start the daemon at login");
+                    println!("if your session does not use graphical-session.target, add:");
+                    println!("  {}", ss_belt::autostart::compositor_snippet(&desktop));
+                }
+            }
             Ok(())
         }
 

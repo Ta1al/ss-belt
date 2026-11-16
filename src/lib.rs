@@ -6,6 +6,7 @@
 //! built in.
 
 pub mod action;
+pub mod autostart;
 pub mod adapters;
 pub mod capabilities;
 pub mod config;
