@@ -37,6 +37,12 @@ First working release. Local-only; not published.
 - Pre-signed URL destinations (S3/R2/GCS) with `{filename}` substitution.
 - EXIF/GPS stripping before upload by default.
 
+### Notifications
+
+- One notification per action (previously a capture produced two).
+- Clicking the notification opens the capture, or the uploaded URL, through a
+  detached helper that survives the command that created it.
+
 ### Shell and workflow
 
 - Typed pipeline with pre-flight chain validation and custom actions in
@@ -52,6 +58,9 @@ First working release. Local-only; not published.
   Capture / Create / Record / Share. Title and record entries follow the
   recording state, including recordings started outside the daemon.
 - `doctor` reports whether a tray host can draw the icon.
+- The icon is installed into `$XDG_DATA_HOME/ss-belt/icons/` and `hicolor` on
+  first run and advertised through `IconThemePath`, so it resolves without a
+  package install.
 
 ### Packaging
 
