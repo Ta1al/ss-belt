@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 
-use crate::capabilities::{Desktop, ToolSet};
+use crate::capabilities::{Desktop, Distro, ToolSet};
 use crate::config::Config;
 use crate::paths::Paths;
 use crate::steps::{self, Probe};
@@ -59,17 +59,6 @@ pub fn distro() -> (String, String) {
     (id, pretty)
 }
 
-fn install_command(package: &str) -> String {
-    let (id, _) = distro();
-    match id.as_str() {
-        "fedora" | "rhel" | "centos" => format!("sudo dnf install {package}"),
-        "debian" | "ubuntu" | "linuxmint" | "pop" => format!("sudo apt install {package}"),
-        "arch" | "manjaro" | "endeavouros" => format!("sudo pacman -S {package}"),
-        "opensuse-tumbleweed" | "opensuse-leap" | "suse" => format!("sudo zypper install {package}"),
-        _ => format!("install {package} with your package manager"),
-    }
-}
-
 pub fn collect(paths: &Paths, config: &Config) -> Result<Report> {
     collect_with(paths, config, crate::daemon::is_running(paths))
 }
@@ -94,6 +83,7 @@ pub fn collect_with(paths: &Paths, config: &Config, daemon_running: bool) -> Res
         })
         .collect();
 
+    let family = Distro::detect();
     let tool_rows = tools
         .iter()
         .map(|(tool, path)| ToolRow {
@@ -101,7 +91,7 @@ pub fn collect_with(paths: &Paths, config: &Config, daemon_running: bool) -> Res
             found: path.is_some(),
             path: path.map(|p| p.display().to_string()),
             purpose: tool.purpose().to_string(),
-            install: install_command(tool.packages().0),
+            install: family.install_command(&[tool.package_for(family)]),
         })
         .collect();
 
@@ -230,7 +220,7 @@ mod tests {
 
     #[test]
     fn install_commands_name_a_package_manager() {
-        let command = install_command("grim");
+        let command = Distro::detect().install_command(&["grim"]);
         assert!(command.contains("grim"));
         assert!(command.contains("install") || command.contains("-S"));
     }

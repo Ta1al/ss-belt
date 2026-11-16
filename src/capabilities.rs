@@ -99,27 +99,93 @@ impl ToolId {
         }
     }
 
-    /// Package name per distro family, used by `ss-belt doctor`.
-    pub fn packages(self) -> (&'static str, &'static str) {
+    /// (Fedora, Debian, Arch) package names. openSUSE reuses the Arch name.
+    pub fn packages(self) -> (&'static str, &'static str, &'static str) {
         match self {
-            ToolId::Grim => ("grim", "grim"),
-            ToolId::Slurp => ("slurp", "slurp"),
-            ToolId::Spectacle => ("spectacle", "spectacle"),
-            ToolId::GnomeScreenshot => ("gnome-screenshot", "gnome-screenshot"),
-            ToolId::WlCopy | ToolId::WlPaste => ("wl-clipboard", "wl-clipboard"),
-            ToolId::Xclip => ("xclip", "xclip"),
-            ToolId::Satty => ("satty", "satty"),
-            ToolId::Swappy => ("swappy", "swappy"),
-            ToolId::WlScreenrec => ("wl-screenrec", "wl-screenrec"),
-            ToolId::WfRecorder => ("wf-recorder", "wf-recorder"),
-            ToolId::Ffmpeg => ("ffmpeg", "ffmpeg"),
-            ToolId::Gifski => ("gifski", "gifski"),
-            ToolId::Tesseract => ("tesseract", "tesseract"),
-            ToolId::Exiftool => ("perl-Image-ExifTool", "libimage-exiftool-perl"),
-            ToolId::NotifySend => ("libnotify", "libnotify-bin"),
-            ToolId::XdgOpen => ("xdg-utils", "xdg-utils"),
-            ToolId::Gdbus => ("glib2", "libglib2.0-bin"),
-            ToolId::Systemctl => ("systemd", "systemd"),
+            ToolId::Grim => ("grim", "grim", "grim"),
+            ToolId::Slurp => ("slurp", "slurp", "slurp"),
+            ToolId::Spectacle => ("spectacle", "spectacle", "spectacle"),
+            ToolId::GnomeScreenshot => ("gnome-screenshot", "gnome-screenshot", "gnome-screenshot"),
+            ToolId::WlCopy | ToolId::WlPaste => ("wl-clipboard", "wl-clipboard", "wl-clipboard"),
+            ToolId::Xclip => ("xclip", "xclip", "xclip"),
+            ToolId::Satty => ("satty", "satty", "satty"),
+            ToolId::Swappy => ("swappy", "swappy", "swappy"),
+            ToolId::WlScreenrec => ("wl-screenrec", "wl-screenrec", "wl-screenrec"),
+            ToolId::WfRecorder => ("wf-recorder", "wf-recorder", "wf-recorder"),
+            ToolId::Ffmpeg => ("ffmpeg", "ffmpeg", "ffmpeg"),
+            ToolId::Gifski => ("gifski", "gifski", "gifski"),
+            ToolId::Tesseract => ("tesseract", "tesseract", "tesseract"),
+            ToolId::Exiftool => {
+                ("perl-Image-ExifTool", "libimage-exiftool-perl", "perl-image-exiftool")
+            }
+            ToolId::NotifySend => ("libnotify", "libnotify-bin", "libnotify"),
+            ToolId::XdgOpen => ("xdg-utils", "xdg-utils", "xdg-utils"),
+            ToolId::Gdbus => ("glib2", "libglib2.0-bin", "glib2"),
+            ToolId::Systemctl => ("systemd", "systemd", "systemd"),
+        }
+    }
+
+    pub fn package_for(self, distro: Distro) -> &'static str {
+        let (fedora, debian, arch) = self.packages();
+        match distro {
+            Distro::Debian => debian,
+            Distro::Arch | Distro::Suse => arch,
+            _ => fedora,
+        }
+    }
+
+    /// Reverse lookup for errors raised by a failed exec.
+    pub fn from_binary(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|tool| tool.binary() == name)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Distro {
+    Fedora,
+    Debian,
+    Arch,
+    Suse,
+    Unknown,
+}
+
+impl Distro {
+    pub fn detect() -> Self {
+        let text = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+        let mut id = String::new();
+        let mut like = String::new();
+        for line in text.lines() {
+            if let Some(value) = line.strip_prefix("ID=") {
+                id = value.trim_matches('"').to_ascii_lowercase();
+            } else if let Some(value) = line.strip_prefix("ID_LIKE=") {
+                like = value.trim_matches('"').to_ascii_lowercase();
+            }
+        }
+        let haystack = format!("{id} {like}");
+        if haystack.contains("fedora") || haystack.contains("rhel") || haystack.contains("centos") {
+            Distro::Fedora
+        } else if haystack.contains("debian")
+            || haystack.contains("ubuntu")
+            || haystack.contains("mint")
+        {
+            Distro::Debian
+        } else if haystack.contains("arch") || haystack.contains("manjaro") {
+            Distro::Arch
+        } else if haystack.contains("suse") {
+            Distro::Suse
+        } else {
+            Distro::Unknown
+        }
+    }
+
+    pub fn install_command(self, packages: &[&str]) -> String {
+        let list = packages.join(" ");
+        match self {
+            Distro::Fedora => format!("sudo dnf install {list}"),
+            Distro::Debian => format!("sudo apt install {list}"),
+            Distro::Arch => format!("sudo pacman -S {list}"),
+            Distro::Suse => format!("sudo zypper install {list}"),
+            Distro::Unknown => format!("install {list} with your package manager"),
         }
     }
 }
@@ -263,11 +329,35 @@ mod tests {
     }
 
     #[test]
-    fn every_tool_has_a_package_name() {
+    fn every_tool_has_a_package_name_everywhere() {
         for tool in ToolId::ALL {
-            let (fedora, debian) = tool.packages();
-            assert!(!fedora.is_empty(), "{tool:?}");
-            assert!(!debian.is_empty(), "{tool:?}");
+            let (fedora, debian, arch) = tool.packages();
+            for name in [fedora, debian, arch] {
+                assert!(!name.is_empty(), "{tool:?}");
+            }
         }
+    }
+
+    #[test]
+    fn package_names_follow_each_distro() {
+        assert_eq!(ToolId::NotifySend.package_for(Distro::Fedora), "libnotify");
+        assert_eq!(ToolId::NotifySend.package_for(Distro::Debian), "libnotify-bin");
+        assert_eq!(ToolId::Exiftool.package_for(Distro::Arch), "perl-image-exiftool");
+    }
+
+    #[test]
+    fn distro_install_commands_name_a_package_manager() {
+        assert_eq!(
+            Distro::Fedora.install_command(&["grim", "slurp"]),
+            "sudo dnf install grim slurp"
+        );
+        assert_eq!(Distro::Debian.install_command(&["grim"]), "sudo apt install grim");
+        assert_eq!(Distro::Arch.install_command(&["grim"]), "sudo pacman -S grim");
+    }
+
+    #[test]
+    fn binaries_map_back_to_tools() {
+        assert_eq!(ToolId::from_binary("grim"), Some(ToolId::Grim));
+        assert_eq!(ToolId::from_binary("not-a-tool"), None);
     }
 }
