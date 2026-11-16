@@ -35,6 +35,7 @@ pub struct Report {
     pub save_dir: String,
     pub history: String,
     pub daemon: String,
+    pub tray: String,
     pub recording: bool,
     pub capabilities: Vec<CapabilityRow>,
     pub tools: Vec<ToolRow>,
@@ -117,6 +118,7 @@ pub fn collect_with(paths: &Paths, config: &Config, daemon_running: bool) -> Res
         save_dir: config.save_dir().display().to_string(),
         history: paths.db_file().display().to_string(),
         daemon,
+        tray: tray_status(),
         recording: crate::adapters::record::is_recording(paths),
         capabilities,
         tools: tool_rows,
@@ -137,6 +139,7 @@ pub fn print(paths: &Paths, config: &Config, json: bool) -> Result<()> {
     println!("save dir    {}{}", report.save_dir, writable_marker(Path::new(&report.save_dir)));
     println!("history     {}", report.history);
     println!("daemon      {}", report.daemon);
+    println!("tray        {}", report.tray);
     println!("recording   {}", if report.recording { "yes" } else { "no" });
     println!();
 
@@ -158,6 +161,30 @@ pub fn print(paths: &Paths, config: &Config, json: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Whether a StatusNotifierItem host can actually draw the icon.
+///
+/// There is no portable way to ask, so look for the watcher on the session bus.
+/// `unknown` is a real answer: it means the check could not be made.
+fn tray_status() -> String {
+    if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_none()
+        && std::env::var_os("XDG_RUNTIME_DIR").is_none()
+    {
+        return "unknown (no session bus)".to_string();
+    }
+    if crate::exec::which("busctl").is_none() {
+        return "unknown (busctl not installed)".to_string();
+    }
+    let output = crate::exec::Cmd::new("busctl")
+        .args(["--user", "status", "org.kde.StatusNotifierWatcher"])
+        .timeout(std::time::Duration::from_secs(2))
+        .run();
+    match output {
+        Ok(output) if output.success() => "available".to_string(),
+        Ok(_) => "unavailable (no StatusNotifierItem host; install waybar or the GNOME AppIndicator extension)".to_string(),
+        Err(_) => "unknown".to_string(),
+    }
 }
 
 fn writable_marker(path: &Path) -> &'static str {
