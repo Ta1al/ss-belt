@@ -322,6 +322,25 @@ fn fixed_duration_recording_stops_by_itself() {
 }
 
 #[test]
+fn a_missing_package_error_names_the_install_command() {
+    let fixture = Fixture::new();
+    let image = Fixture::fixture_png();
+    let output = fixture.run(&["ocr", "--file", image.to_str().unwrap()]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("OCR needs tesseract"), "{stderr}");
+    assert!(stderr.contains("install with:"), "{stderr}");
+    assert!(
+        stderr.contains("dnf")
+            || stderr.contains("apt")
+            || stderr.contains("pacman")
+            || stderr.contains("zypper")
+            || stderr.contains("package manager"),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn daemon_commands_report_when_not_running() {
     let fixture = Fixture::new();
     let output = fixture.run(&["daemon", "status"]);
