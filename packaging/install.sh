@@ -11,7 +11,15 @@ PREFIX=${PREFIX:-/usr/local}
 BINDIR="$PREFIX/bin"
 APPDIR="$PREFIX/share/applications"
 ICONDIR="$PREFIX/share/icons/hicolor/scalable/apps"
-UNITDIR="$PREFIX/lib/systemd/user"
+# systemd user units are only read from specific directories; `$PREFIX/lib` is
+# not one of them for user units.
+if [ "${PREFIX#"$HOME"}" != "$PREFIX" ]; then
+  UNITDIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+elif [ "$PREFIX" = /usr ]; then
+  UNITDIR=/usr/lib/systemd/user
+else
+  UNITDIR="$PREFIX/share/systemd/user"
+fi
 BASH_COMP="$PREFIX/share/bash-completion/completions"
 ZSH_COMP="$PREFIX/share/zsh/site-functions"
 FISH_COMP="$PREFIX/share/fish/vendor_completions.d"
@@ -32,7 +40,9 @@ install -d "$BINDIR" "$APPDIR" "$ICONDIR" "$UNITDIR" "$BASH_COMP" "$ZSH_COMP" "$
 install -m755 "$root/target/release/ss-belt" "$BINDIR/ss-belt"
 install -m644 "$root/packaging/ss-belt.desktop" "$APPDIR/ss-belt.desktop"
 install -m644 "$root/packaging/ss-belt.svg" "$ICONDIR/ss-belt.svg"
-install -m644 "$root/packaging/ss-belt.service" "$UNITDIR/ss-belt.service"
+# Point the unit at the binary we just installed, not at /usr/bin.
+sed "s|/usr/bin/ss-belt|$BINDIR/ss-belt|g" "$root/packaging/ss-belt.service" \
+  > "$UNITDIR/ss-belt.service"
 install -m644 "$root/packaging/completions/ss-belt.bash" "$BASH_COMP/ss-belt"
 install -m644 "$root/packaging/completions/ss-belt.zsh" "$ZSH_COMP/_ss-belt"
 install -m644 "$root/packaging/completions/ss-belt.fish" "$FISH_COMP/ss-belt.fish"

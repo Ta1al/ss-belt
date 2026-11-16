@@ -7,7 +7,7 @@ Every format below installs the same files:
 | `/usr/bin/ss-belt` | binary |
 | `/usr/share/applications/ss-belt.desktop` | launcher with actions |
 | `/usr/share/icons/hicolor/scalable/apps/ss-belt.svg` | icon |
-| `/usr/lib/systemd/user/ss-belt.service` | optional daemon |
+| systemd user unit | optional daemon (path varies; see below) |
 | `/usr/share/{bash-completion,zsh,fish}/…` | completions |
 
 External tools are **recommendations, never hard dependencies**. ss-belt starts
@@ -69,6 +69,21 @@ project has a public source tarball. `optdepends` lists the optional tools.
 Needs `appimagetool` (or `APPIMAGETOOL=/path/to/appimagetool`). The image
 bundles only ss-belt; capture tools stay system packages so the user can choose
 grim vs spectacle vs ffmpeg.
+
+## Starting at login
+
+```sh
+ss-belt autostart --install    # writes the unit where systemd looks, enables it
+ss-belt autostart --status
+ss-belt autostart --uninstall
+```
+
+systemd reads user units from `$XDG_CONFIG_HOME/systemd/user`,
+`/etc/systemd/user`, `/usr/lib/systemd/user` and `$XDG_DATA_DIRS/systemd/user` —
+**not** from `$PREFIX/lib/systemd/user`. The installer therefore puts the unit in
+`~/.config/systemd/user` for user installs, `/usr/lib/systemd/user` for
+`PREFIX=/usr`, and `$PREFIX/share/systemd/user` otherwise, and rewrites
+`ExecStart` to the installed binary.
 
 ## From source
 
