@@ -7,7 +7,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::capabilities::{SessionType, ToolId};
-use crate::error::{user, user_hint};
+use crate::error::{missing_tools, user};
 use crate::paths::Paths;
 use crate::steps::{Ctx, Probe, Support, Value};
 use crate::error::HintExt;
@@ -54,16 +54,16 @@ fn select(probe: &Probe<'_>) -> Result<Backend> {
     }
     if probe.tools.has(ToolId::Ffmpeg) {
         if probe.desktop.is_wayland() {
-            return Err(user_hint(
-                "screen recording on Wayland needs wl-screenrec or wf-recorder",
-                "install wl-screenrec; ffmpeg can only record XWayland windows here",
+            return Err(missing_tools(
+                "screen recording on Wayland",
+                &[ToolId::WlScreenrec, ToolId::WfRecorder],
             ));
         }
         return Ok(Backend::Ffmpeg);
     }
-    Err(user_hint(
-        "no screen recorder available",
-        "install wl-screenrec (Wayland) or ffmpeg (X11)",
+    Err(missing_tools(
+        "screen recording",
+        &[ToolId::WlScreenrec, ToolId::WfRecorder, ToolId::Ffmpeg],
     ))
 }
 

@@ -2,10 +2,9 @@ use anyhow::Result;
 use std::time::Duration;
 
 use crate::capabilities::ToolId;
-use crate::error::{cancelled, user};
+use crate::error::{cancelled, missing_tools, user};
 use crate::exec::Cmd;
 use crate::steps::{Ctx, Probe, Support};
-use crate::error::HintExt;
 
 pub fn support(probe: &Probe<'_>) -> Support {
     match probe.config.general.annotator.as_str() {
@@ -51,9 +50,7 @@ pub fn run(ctx: &mut Ctx) -> Result<()> {
     }
 
     let Some(tool) = pick(ctx) else {
-        return Err(user("no annotator installed").hint(
-            "install satty or swappy, or set general.annotator = \"none\"",
-        ));
+        return Err(missing_tools("annotation", &[ToolId::Satty, ToolId::Swappy]));
     };
 
     if ctx.dry_run {

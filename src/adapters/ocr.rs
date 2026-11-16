@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::time::Duration;
 
 use crate::capabilities::ToolId;
-use crate::error::user;
+use crate::error::{missing_tools, user};
 use crate::exec::Cmd;
 use crate::steps::{Ctx, Probe, Support, Value};
 use crate::error::HintExt;
@@ -19,7 +19,7 @@ pub fn run(ctx: &mut Ctx) -> Result<()> {
     let path = ctx.require_image("ocr")?;
 
     if !ctx.tools.has(ToolId::Tesseract) {
-        return Err(user("OCR needs tesseract").hint("install tesseract, then retry"));
+        return Err(missing_tools("OCR", &[ToolId::Tesseract]));
     }
 
     if ctx.dry_run {

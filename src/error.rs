@@ -42,7 +42,9 @@ pub fn user_hint(message: impl Into<String>, hint: impl Into<String>) -> anyhow:
 /// True when the error chain contains a [`UserError`], i.e. it should be printed
 /// without a backtrace and without being reported as an internal failure.
 pub fn is_user_error(err: &anyhow::Error) -> bool {
-    err.chain().any(|cause| cause.downcast_ref::<UserError>().is_some())
+    err.chain().any(|cause| {
+        cause.downcast_ref::<UserError>().is_some() || cause.downcast_ref::<MissingTools>().is_some()
+    })
 }
 
 /// The user dismissed a window (annotation, region selection). Not a failure:
@@ -79,4 +81,41 @@ impl HintExt for anyhow::Error {
             Err(err) => err.context(hint.into()),
         }
     }
+}
+
+/// A capability is unavailable because one or more packages are missing.
+///
+/// Carrying the tools (rather than a formatted string) is what lets the daemon
+/// offer the install command as a click-to-copy action.
+#[derive(Debug)]
+pub struct MissingTools {
+    pub what: String,
+    pub tools: Vec<crate::capabilities::ToolId>,
+}
+
+impl MissingTools {
+    pub fn install_command(&self) -> String {
+        let distro = crate::capabilities::Distro::detect();
+        let packages: Vec<&str> = self.tools.iter().map(|tool| tool.package_for(distro)).collect();
+        distro.install_command(&packages)
+    }
+}
+
+impl fmt::Display for MissingTools {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let names: Vec<&str> = self.tools.iter().map(|tool| tool.binary()).collect();
+        write!(f, "{} needs {}", self.what, names.join(", "))?;
+        write!(f, "\n  install with: {}", self.install_command())
+    }
+}
+
+impl std::error::Error for MissingTools {}
+
+pub fn missing_tools(what: impl Into<String>, tools: &[crate::capabilities::ToolId]) -> anyhow::Error {
+    anyhow::Error::new(MissingTools { what: what.into(), tools: tools.to_vec() })
+}
+
+/// Find a [`MissingTools`] anywhere in an error chain.
+pub fn missing_tools_in(err: &anyhow::Error) -> Option<&MissingTools> {
+    err.chain().find_map(|cause| cause.downcast_ref::<MissingTools>())
 }

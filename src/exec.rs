@@ -144,10 +144,17 @@ impl Cmd {
 
         let mut child = command.spawn().map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
-                user_hint(
-                    format!("`{}` is not installed", self.program),
-                    "run `ss-belt doctor` to see which optional tools are missing",
-                )
+                let basename = std::path::Path::new(&self.program)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| self.program.clone());
+                match crate::capabilities::ToolId::from_binary(&basename) {
+                    Some(tool) => crate::error::missing_tools("this feature", &[tool]),
+                    None => user_hint(
+                        format!("`{}` is not installed", self.program),
+                        "run `ss-belt doctor` to see which optional tools are missing",
+                    ),
+                }
             } else {
                 anyhow::Error::new(err).context(format!("could not run `{}`", self.program))
             }

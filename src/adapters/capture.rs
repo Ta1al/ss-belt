@@ -4,7 +4,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use crate::capabilities::{SessionType, ToolId};
-use crate::error::{cancelled, user, user_hint};
+use crate::error::{cancelled, missing_tools, user};
 use crate::exec::{Cmd, Output};
 use crate::steps::{Ctx, Probe, Support, Value};
 use crate::error::HintExt;
@@ -87,21 +87,19 @@ fn select(probe: &Probe<'_>, target: Target) -> Result<Backend> {
         return Ok(Backend::X11);
     }
 
-    Err(user_hint(
-        format!("no capture backend available for {}", target.as_str()),
-        install_hint(desktop),
-    ))
+    let _ = target;
+    Err(missing_tools("screen capture", &recommended_tools(desktop)))
 }
 
-fn install_hint(desktop: &crate::capabilities::Desktop) -> &'static str {
+fn recommended_tools(desktop: &crate::capabilities::Desktop) -> Vec<ToolId> {
     if desktop.is_kde() {
-        "install spectacle, or grim + slurp on wlroots"
+        vec![ToolId::Spectacle]
     } else if desktop.is_gnome() {
-        "install gnome-screenshot, or grim + slurp"
+        vec![ToolId::GnomeScreenshot]
     } else if desktop.is_wayland() {
-        "install grim and slurp for native Wayland capture"
+        vec![ToolId::Grim, ToolId::Slurp]
     } else {
-        "no display was found; capture needs a graphical session"
+        vec![ToolId::Ffmpeg]
     }
 }
 
