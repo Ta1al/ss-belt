@@ -29,6 +29,10 @@ pub fn send(ctx: &Ctx, summary: &str, body: &str) {
 
 pub fn notify_run(ctx: &mut Ctx) -> Result<()> {
     let body = ctx.value.describe();
+    if ctx.dry_run {
+        ctx.note(format!("dry-run: would notify `{body}`"));
+        return Ok(());
+    }
     ctx.notify("ss-belt", &body);
     Ok(())
 }

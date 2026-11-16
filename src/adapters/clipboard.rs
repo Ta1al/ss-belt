@@ -114,6 +114,7 @@ fn copy_text(ctx: &Ctx, text: &str) -> Result<()> {
 pub fn paste_run(ctx: &mut Ctx) -> Result<()> {
     if ctx.dry_run {
         ctx.note("dry-run: would read the clipboard");
+        ctx.value = Value::Image(ctx.stage("clipboard.png"));
         return Ok(());
     }
 

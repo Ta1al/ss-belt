@@ -1,0 +1,2 @@
+#!/bin/sh
+printf '%s\n' "$*" >> "${SS_BELT_TEST_NOTIFY:-/dev/null}"

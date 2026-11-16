@@ -167,6 +167,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut ctx = testing::ctx_for("region", dir.path());
         ctx.dry_run = true;
+        ctx.tools = testing::tools(&[
+            crate::capabilities::ToolId::Grim,
+            crate::capabilities::ToolId::Slurp,
+            crate::capabilities::ToolId::WlCopy,
+            crate::capabilities::ToolId::WlPaste,
+        ]);
+        ctx.desktop = testing::wayland();
         let execution = execute(&mut ctx, "region", None).unwrap();
         assert!(!execution.recording_started);
         assert_eq!(execution.report.unwrap().action, "region");

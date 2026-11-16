@@ -91,12 +91,9 @@ pub fn run(ctx: &mut Ctx, pipeline: &Pipeline) -> Result<Report> {
         let step_started = Instant::now();
         ctx.note(format!("-> {} ({})", spec.name, spec.summary));
 
-        let result = if ctx.dry_run {
-            ctx.note(format!("dry-run: would run `{}`", spec.name));
-            Ok(())
-        } else {
-            (spec.run)(ctx)
-        };
+        // Steps receive the dry-run flag themselves so each one can describe
+        // exactly what it would have done (and set a plausible value).
+        let result = (spec.run)(ctx);
 
         let ms = step_started.elapsed().as_millis();
         match result {
@@ -210,6 +207,13 @@ mod tests {
         )
         .unwrap();
         ctx.dry_run = dry_run;
+        ctx.tools = crate::adapters::testing::tools(&[
+            crate::capabilities::ToolId::Grim,
+            crate::capabilities::ToolId::Slurp,
+            crate::capabilities::ToolId::WlCopy,
+            crate::capabilities::ToolId::WlPaste,
+        ]);
+        ctx.desktop = crate::adapters::testing::wayland();
         ctx
     }
 

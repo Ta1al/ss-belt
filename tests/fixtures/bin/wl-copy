@@ -1,0 +1,7 @@
+#!/bin/sh
+out="${SS_BELT_TEST_CLIPBOARD:-/dev/null}"
+if [ "$1" = "--list-types" ]; then
+  cat "$SS_BELT_TEST_TYPES"
+  exit 0
+fi
+cat > "$out"

@@ -442,6 +442,15 @@ fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
 
+        Command::QrMake { text } => qr_make(&cli, text.clone()),
+
+        Command::QrScan => {
+            let mut ctx = context(&cli, "qr_scan")?;
+            run_action(&mut ctx, "qr_scan", None)?;
+            print_value(&ctx.value);
+            Ok(())
+        }
+
         Command::Qr { mode } => match mode {
             QrMode::Scan => {
                 let mut ctx = context(&cli, "qr_scan")?;
@@ -449,17 +458,7 @@ fn run(cli: Cli) -> Result<()> {
                 print_value(&ctx.value);
                 Ok(())
             }
-            QrMode::Make { text } => {
-                let mut ctx = context(&cli, "qr_make")?;
-                if let Some(text) = text {
-                    ctx.value = Value::Text(text.clone());
-                    run_steps(&mut ctx, &["qr.make", "save", "clipboard.copy", "notify"])?;
-                } else {
-                    run_action(&mut ctx, "qr_make", None)?;
-                }
-                print_value(&ctx.value);
-                Ok(())
-            }
+            QrMode::Make { text } => qr_make(&cli, text.clone()),
         },
 
         Command::Gif { duration } => run_record(&cli, "gif", *duration),
@@ -473,6 +472,18 @@ fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn qr_make(cli: &Cli, text: Option<String>) -> Result<()> {
+    let mut ctx = context(cli, "qr_make")?;
+    if let Some(text) = text {
+        ctx.value = Value::Text(text);
+        run_steps(&mut ctx, &["qr.make", "save", "clipboard.copy", "notify"])?;
+    } else {
+        run_action(&mut ctx, "qr_make", None)?;
+    }
+    print_value(&ctx.value);
+    Ok(())
 }
 
 fn run_record(cli: &Cli, name: &str, duration: Option<u64>) -> Result<()> {

@@ -1,0 +1,4 @@
+#!/bin/sh
+# fake grim: the last argument is the output file
+for last do :; done
+cp "$SS_BELT_TEST_PNG" "$last"
