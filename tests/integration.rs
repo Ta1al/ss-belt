@@ -290,6 +290,20 @@ fn video_toggle_starts_then_finishes_a_recording() {
 }
 
 #[test]
+fn fixed_duration_recording_stops_by_itself() {
+    let fixture = Fixture::new();
+    let output = fixture.run(&["video", "--duration", "1"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let saved = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    assert!(saved.exists(), "{}", saved.display());
+    assert!(!fixture.text(&["status"]).contains("recording"));
+}
+
+#[test]
 fn daemon_commands_report_when_not_running() {
     let fixture = Fixture::new();
     let output = fixture.run(&["daemon", "status"]);
