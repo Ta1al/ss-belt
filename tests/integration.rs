@@ -71,6 +71,7 @@ impl Fixture {
         );
         command
             .env("SS_BELT_HOME", self.root())
+            .env("XDG_CONFIG_HOME", self.root().join("xdg-config"))
             .env("PATH", path)
             .env("SS_BELT_TEST_PNG", Self::fixture_png())
             .env("SS_BELT_TEST_CLIPBOARD", self.clipboard_file())
@@ -325,7 +326,14 @@ fn fixed_duration_recording_stops_by_itself() {
 fn a_missing_package_error_names_the_install_command() {
     let fixture = Fixture::new();
     let image = Fixture::fixture_png();
-    let output = fixture.run(&["ocr", "--file", image.to_str().unwrap()]);
+    // OCR would succeed on a host that has tesseract, so hide every host tool:
+    // PATH contains only the fake fixtures, none of which is tesseract.
+    let output = fixture
+        .command()
+        .env("PATH", Fixture::fake_bin())
+        .args(["ocr", "--file", image.to_str().unwrap()])
+        .output()
+        .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("OCR needs tesseract"), "{stderr}");
@@ -337,6 +345,17 @@ fn a_missing_package_error_names_the_install_command() {
             || stderr.contains("zypper")
             || stderr.contains("package manager"),
         "{stderr}"
+    );
+}
+
+#[test]
+fn autostart_reports_where_the_unit_would_go() {
+    let fixture = Fixture::new();
+    let output = fixture.text(&["autostart", "--status"]);
+    assert!(output.contains("installed: no"), "{output}");
+    assert!(
+        output.contains(&fixture.root().join("xdg-config/systemd/user/ss-belt.service").display().to_string()),
+        "{output}"
     );
 }
 
