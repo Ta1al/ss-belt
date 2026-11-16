@@ -193,6 +193,12 @@ enum DaemonCommand {
 }
 
 fn main() -> ExitCode {
+    // Behave like a normal Unix tool when stdout is a closed pipe (`| head`).
+    // Rust ignores SIGPIPE by default, which turns a closed pipe into a panic.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     let cli = Cli::parse();
     init_tracing(cli.verbose);
 
