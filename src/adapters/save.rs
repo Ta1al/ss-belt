@@ -53,7 +53,6 @@ pub fn run(ctx: &mut Ctx) -> Result<()> {
             .run();
     }
 
-    ctx.notify("Saved", &destination.display().to_string());
     Ok(())
 }
 

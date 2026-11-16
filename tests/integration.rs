@@ -97,6 +97,19 @@ impl Fixture {
         self.command().args(args).output().expect("running ss-belt")
     }
 
+    /// Notifications are sent by a detached helper, so poll for the effect.
+    fn wait_for_file_text(&self, path: &Path, needle: &str) -> String {
+        for _ in 0..100 {
+            if let Ok(text) = fs::read_to_string(path) {
+                if text.contains(needle) {
+                    return text;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        fs::read_to_string(path).unwrap_or_default()
+    }
+
     fn text(&self, args: &[&str]) -> String {
         let output = self.run(args);
         assert!(
@@ -199,8 +212,13 @@ fn region_capture_saves_copies_and_notifies() {
     let clipboard = fs::read(fixture.clipboard_file()).unwrap();
     assert_eq!(&clipboard[..4], b"\x89PNG", "image was not copied");
 
-    let notify = fs::read_to_string(fixture.notify_file()).unwrap();
-    assert!(notify.contains("Saved"), "{notify}");
+    let notify = fixture.wait_for_file_text(&fixture.notify_file(), "Capture saved");
+    assert!(notify.contains("Capture saved"), "{notify}");
+    assert_eq!(
+        notify.lines().count(),
+        1,
+        "exactly one notification per capture, got:\n{notify}"
+    );
 
     let history = fixture.text(&["history", "--limit", "10"]);
     assert!(history.contains("capture.region"), "{history}");
