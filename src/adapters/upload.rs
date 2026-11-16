@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use std::fs;
 use std::io::Cursor;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::config::Destination;
@@ -321,16 +320,6 @@ fn strip_metadata(payload: Payload) -> Payload {
     Payload { bytes: out.into_inner(), ..payload }
 }
 
-pub fn destination_exists(ctx: &Ctx, name: &str) -> Option<PathBuf> {
-    match ctx.config.upload.destinations.get(name) {
-        Some(Destination::Sxcu { file }) => Some(util::expand_tilde(file)),
-        _ => None,
-    }
-}
-
-pub fn is_remote(url: &str) -> bool {
-    url.starts_with("http://") || url.starts_with("https://")
-}
 
 #[cfg(test)]
 mod tests {

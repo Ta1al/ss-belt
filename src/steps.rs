@@ -1,10 +1,10 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use chrono::{DateTime, Local};
 use std::path::{Path, PathBuf};
 
 use crate::capabilities::{Desktop, ToolSet};
 use crate::config::Config;
-use crate::error::{user, user_hint};
+use crate::error::user;
 use crate::paths::Paths;
 use crate::util;
 use crate::error::HintExt;
@@ -131,13 +131,7 @@ impl Ctx {
 
     pub fn note(&mut self, message: impl Into<String>) {
         let message = message.into();
-        // In a dry run the notes are the product: print them. Otherwise they are
-        // diagnostics, available with `-v`.
-        if self.dry_run {
-            eprintln!("{message}");
-        } else {
-            tracing::debug!("{}", message);
-        }
+        tracing::debug!("{}", message);
         self.log.push(message);
     }
 
@@ -209,10 +203,6 @@ impl Ctx {
         crate::adapters::misc::send(self, summary, body);
     }
 
-    pub fn fail_hint(&self, message: impl Into<String>, hint: impl Into<String>) -> anyhow::Error {
-        let _ = self;
-        user_hint(message, hint)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -314,19 +304,3 @@ pub fn validate_chain_from(steps: &[String], start: Kind) -> Result<Vec<&'static
     Ok(specs)
 }
 
-pub fn explain_chain(steps: &[String]) -> Result<Vec<(String, String)>> {
-    let specs = validate_chain(steps)?;
-    Ok(specs
-        .iter()
-        .map(|spec| (spec.name.to_string(), spec.output.as_str().to_string()))
-        .collect())
-}
-
-/// Helper for steps: build the "missing tool" error with a distro-aware hint.
-pub fn missing_tool(tools: &[&str]) -> anyhow::Error {
-    let list = tools.join(", ");
-    anyhow!(user_hint(
-        format!("this needs {list}, which is not installed"),
-        "run `ss-belt doctor` for per-distro install commands"
-    ))
-}

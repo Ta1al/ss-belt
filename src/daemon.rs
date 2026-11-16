@@ -4,7 +4,6 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::action;
@@ -292,10 +291,3 @@ pub fn ensure_running(paths: &Paths, config: &Config) -> Result<()> {
     Err(user("the daemon did not start").hint("start it manually with `ss-belt daemon`"))
 }
 
-pub fn socket_path(paths: &Paths) -> std::path::PathBuf {
-    paths.socket_file()
-}
-
-pub fn shared_flag() -> Arc<AtomicBool> {
-    Arc::new(AtomicBool::new(STOP.load(Ordering::SeqCst)))
-}

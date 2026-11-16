@@ -3,10 +3,10 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 
-use crate::capabilities::{Desktop, ToolId, ToolSet};
+use crate::capabilities::{Desktop, ToolSet};
 use crate::config::Config;
 use crate::paths::Paths;
-use crate::steps::{self, Probe, Support};
+use crate::steps::{self, Probe};
 
 #[derive(Debug, Serialize)]
 pub struct ToolRow {
@@ -189,13 +189,6 @@ pub fn summary_line_with(paths: &Paths, config: &Config, daemon_running: bool) -
     ))
 }
 
-pub fn capability_status(support: &Support) -> &'static str {
-    support.label()
-}
-
-pub fn tool_install(tool: ToolId) -> String {
-    install_command(tool.packages().0)
-}
 
 #[cfg(test)]
 mod tests {

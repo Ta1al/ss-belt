@@ -1,6 +1,5 @@
 use anyhow::Result;
 use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::capabilities::{SessionType, ToolId};
@@ -223,19 +222,6 @@ fn paste_x11(ctx: &Ctx) -> Result<Option<Value>> {
         }
     }
     Ok(None)
-}
-
-/// Read the clipboard as an image path, used by `ss-belt edit`.
-pub fn read_image(ctx: &Ctx) -> Result<Option<PathBuf>> {
-    let pasted = if use_wayland(ctx) { paste_wayland(ctx)? } else { paste_x11(ctx)? };
-    match pasted {
-        Some(Value::Image(path)) => Ok(Some(path)),
-        _ => Ok(None),
-    }
-}
-
-pub fn clipboard_command_hint() -> &'static str {
-    "install wl-clipboard (Wayland) or xclip (X11)"
 }
 
 #[cfg(test)]
